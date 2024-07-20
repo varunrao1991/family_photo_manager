@@ -1,0 +1,5 @@
+# Ignore the SQLite database file
+*.db
+
+# Ignore the cache directory
+cache/

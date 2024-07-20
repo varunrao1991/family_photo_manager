@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Image Similarity Search</title>
+    <link href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 20px auto;
+            padding: 0 20px;
+        }
+        h1 {
+            text-align: center;
+        }
+        label {
+            display: block;
+            margin-top: 20px;
+        }
+        input[type="file"] {
+            margin-top: 10px;
+        }
+        #results {
+            margin-top: 20px;
+        }
+        .card-container {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 15px;
+            max-height: 600px;
+            overflow-y: auto;
+        }
+        .card {
+            width: 300px;
+            flex: 1 1 300px;
+            margin-bottom: 15px;
+            position: relative;
+        }
+        .card-img-top {
+            max-height: 300px;
+            object-fit: cover;
+        }
+        .card-checkbox {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            z-index: 1;
+        }
+        .checkbox-container {
+            margin-top: 20px;
+        }
+    </style>
+</head>
+<body>
+    <h1>Image Similarity Search</h1>
+    <form id="searchForm" enctype="multipart/form-data">
+        <label for="query_text">Enter Text Prompt:</label>
+        <input type="text" id="query_text" name="query_text">
+        
+        <label for="query_image">Or Upload an Image:</label>
+        <input type="file" id="query_image" name="query_image" accept="image/*">
+        
+        <button type="submit" class="btn btn-primary">Search</button>
+    </form>
+    
+    <div id="results" class="card-container">
+        <!-- Results will be displayed here -->
+    </div>
+
+    <div class="checkbox-container">
+        <input type="checkbox" id="selectAll"> <label for="selectAll">Select All</label>
+        <button id="deleteSelected" class="btn btn-danger">Delete Selected</button>
+    </div>
+    
+    <nav aria-label="Page navigation">
+        <ul class="pagination">
+            <li class="page-item">
+                <button id="prevPage" class="page-link" aria-label="Previous">
+                    <span aria-hidden="true">&laquo;</span>
+                </button>
+            </li>
+            <li class="page-item">
+                <span id="pageInfo" class="page-link">Page 1</span>
+            </li>
+            <li class="page-item">
+                <button id="nextPage" class="page-link" aria-label="Next">
+                    <span aria-hidden="true">&raquo;</span>
+                </button>
+            </li>
+        </ul>
+    </nav>
+
+    <script src="https://code.jquery.com/jquery-3.5.1.slim.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@popperjs/core@2.5.4/dist/umd/popper.min.js"></script>
+    <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.min.js"></script>
+    <script>
+        let currentPage = 1;
+        const perPage = 10;
+
+        document.getElementById('searchForm').addEventListener('submit', async function(event) {
+            event.preventDefault();
+            currentPage = 1; // Reset to first page on new search
+
+            const formData = new FormData(this);
+            formData.append('page', currentPage);
+            formData.append('per_page', perPage);
+            
+            const response = await fetch('/similar-images', {
+                method: 'POST',
+                body: formData
+            });
+
+            const data = await response.json();
+            displayImages(data);
+            updatePageInfo();
+        });
+
+        document.getElementById('prevPage').addEventListener('click', function() {
+            if (currentPage > 1) {
+                currentPage--;
+                loadPage();
+            }
+        });
+
+        document.getElementById('nextPage').addEventListener('click', function() {
+            currentPage++;
+            loadPage();
+        });
+
+        function loadPage() {
+            const formData = new FormData(document.getElementById('searchForm'));
+            formData.append('page', currentPage);
+            formData.append('per_page', perPage);
+            
+            fetch('/similar-images', {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => response.json())
+            .then(data => {
+                displayImages(data);
+                updatePageInfo();
+            });
+        }
+
+        function displayImages(data) {
+            const resultsDiv = document.getElementById('results');
+            resultsDiv.innerHTML = '';
+
+            if (data.similar_images && data.similar_images.length > 0) {
+                data.similar_images.forEach(imagePath => {
+                    const cardDiv = document.createElement('div');
+                    cardDiv.className = 'card';
+                    
+                    const imgElement = document.createElement('img');
+                    imgElement.src = `/images/${imagePath}`;
+                    imgElement.className = 'card-img-top';
+                    imgElement.alt = 'Similar Image';
+                    imgElement.loading = 'lazy'; // Lazy load the image
+
+                    const checkboxDiv = document.createElement('div');
+                    checkboxDiv.className = 'card-checkbox';
+                    
+                    const checkbox = document.createElement('input');
+                    checkbox.type = 'checkbox';
+                    checkbox.value = imagePath;
+                    
+                    checkboxDiv.appendChild(checkbox);
+
+                    const cardBody = document.createElement('div');
+                    cardBody.className = 'card-body';
+                    cardBody.appendChild(checkboxDiv);
+                    
+                    cardDiv.appendChild(imgElement);
+                    cardDiv.appendChild(cardBody);
+                    resultsDiv.appendChild(cardDiv);
+                });
+            } else {
+                resultsDiv.textContent = 'No similar images found.';
+            }
+        }
+
+        function updatePageInfo() {
+            document.getElementById('pageInfo').textContent = `Page ${currentPage}`;
+        }
+
+        document.getElementById('selectAll').addEventListener('change', function() {
+            const checked = this.checked;
+            document.querySelectorAll('#results .card-checkbox input[type="checkbox"]').forEach(checkbox => {
+                checkbox.checked = checked;
+            });
+        });
+
+        document.getElementById('deleteSelected').addEventListener('click', async function() {
+            const checkboxes = document.querySelectorAll('#results .card-checkbox input[type="checkbox"]:checked');
+            const selectedPaths = Array.from(checkboxes).map(checkbox => checkbox.value);
+            
+            if (selectedPaths.length > 0) {
+                const response = await fetch('/delete-images', {
+                    method: 'DELETE',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ images: selectedPaths })
+                });
+                
+                const result = await response.json();
+                alert(result.message);
+                
+                // Remove the deleted images from the GUI
+                selectedPaths.forEach(path => {
+                    const imgElements = document.querySelectorAll(`#results .card-checkbox input[value="${path}"]`);
+                    imgElements.forEach(imgElement => imgElement.closest('.card').remove());
+                });
+            } else {
+                alert('No images selected.');
+            }
+        });
+    </script>
+</body>
+</html>
