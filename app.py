@@ -2,7 +2,7 @@ from flask import Flask, render_template, request, jsonify, send_from_directory,
 import sqlite3
 import numpy as np
 import torch
-from PIL import Image
+from PIL import Image, ExifTags
 from clip import clip
 from torchvision.transforms import Compose, Resize, CenterCrop, ToTensor, Normalize
 import os
@@ -12,8 +12,8 @@ import queue
 app = Flask(__name__)
 
 MAX_PAGE_SIZE = 50
-DATABASE = 'image_similarity.db'
 IMAGE_DIR = 'F:/'
+DATABASE = 'image_similarity.db'
 CACHE_DIR = 'cache/'
 
 # Ensure the cache directory exists
@@ -37,6 +37,23 @@ transform = Compose([
 # Queue and lock for database operations
 db_queue = queue.Queue()
 db_lock = threading.Lock()
+
+def correct_image_orientation(image):
+    try:
+        for orientation in ExifTags.TAGS.keys():
+            if ExifTags.TAGS[orientation] == 'Orientation':
+                break
+        exif = dict(image._getexif().items())
+        if exif[orientation] == 3:
+            image = image.rotate(180, expand=True)
+        elif exif[orientation] == 6:
+            image = image.rotate(270, expand=True)
+        elif exif[orientation] == 8:
+            image = image.rotate(90, expand=True)
+    except (AttributeError, KeyError, IndexError):
+        # Cases: image don't have getexif
+        pass
+    return image
 
 # Function to process database operations
 def process_db_operations():
@@ -72,7 +89,7 @@ def compute_similarity(query_text, query_image=None):
             c.execute("SELECT * FROM images")
             rows = c.fetchall()
             for row in rows:
-                db_features = np.array([float(x) for x in row['features'].split(',')], dtype=np.float32)
+                db_features = np.frombuffer(row['features'], dtype=np.float32)
                 similarity = (image_features @ torch.tensor(db_features).to(device)).cpu().numpy().item()
                 similarities.append((row['filename'], similarity))
     else:
@@ -82,7 +99,7 @@ def compute_similarity(query_text, query_image=None):
             c.execute("SELECT * FROM images")
             rows = c.fetchall()
             for row in rows:
-                db_features = np.array([float(x) for x in row['features'].split(',')], dtype=np.float32)
+                db_features = np.frombuffer(row['features'], dtype=np.float32)
                 similarity = (text_features @ torch.tensor(db_features).to(device)).cpu().numpy().item()
                 similarities.append((row['filename'], similarity))
 
@@ -119,17 +136,20 @@ def serve_image(filename):
     safe_path = os.path.join(IMAGE_DIR, filename)
     
     if os.path.isfile(safe_path):
-        cache_path = os.path.join(CACHE_DIR, os.path.basename(filename))
+        cache_path = os.path.join(CACHE_DIR, filename)
+        # Ensure the cache directory exists
+        os.makedirs(os.path.dirname(cache_path), exist_ok=True)
         if not os.path.isfile(cache_path):
             create_thumbnail(safe_path, cache_path)
-        return send_from_directory(CACHE_DIR, os.path.basename(filename))
+        return send_from_directory(CACHE_DIR, filename)
     else:
         abort(404)
 
 def create_thumbnail(image_path, cache_path):
     with Image.open(image_path) as img:
-        img.thumbnail((300, 300))
-        img.save(cache_path)
+        img1 = correct_image_orientation(img)
+        img1.thumbnail((300, 300))
+        img1.save(cache_path)
 
 @app.route('/delete-images', methods=['DELETE'])
 def delete_images():
@@ -138,11 +158,12 @@ def delete_images():
 
     def delete_operation(c):
         for image_path in image_paths:
-            c.execute("DELETE FROM images WHERE filename = ?", (image_path,))
             file_path = os.path.join(IMAGE_DIR, image_path)
+            print(file_path)
+            c.execute("DELETE FROM images WHERE filename = ?", (file_path,))
             if os.path.isfile(file_path):
                 os.remove(file_path)
-            cache_file_path = os.path.join(CACHE_DIR, os.path.basename(image_path))
+            cache_file_path = os.path.join(CACHE_DIR, image_path)
             if os.path.isfile(cache_file_path):
                 os.remove(cache_file_path)
 
@@ -150,4 +171,4 @@ def delete_images():
     return jsonify({'message': 'Selected images have been deleted.'})
 
 if __name__ == '__main__':
-    app.run(debug=True)
+    app.run(debug=False)

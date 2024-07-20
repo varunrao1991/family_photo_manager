@@ -25,31 +25,24 @@
         #results {
             margin-top: 20px;
         }
-        .card-container {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 15px;
-            max-height: 600px;
-            overflow-y: auto;
-        }
-        .card {
-            width: 300px;
-            flex: 1 1 300px;
-            margin-bottom: 15px;
-            position: relative;
-        }
         .card-img-top {
             max-height: 300px;
             object-fit: cover;
         }
-        .card-checkbox {
-            position: absolute;
-            top: 10px;
-            left: 10px;
-            z-index: 1;
+        .button-container {
+            display: flex;
+            justify-content: flex-end;
+            margin-bottom: 20px;
         }
-        .checkbox-container {
-            margin-top: 20px;
+        .button-container .btn {
+            margin-left: 10px;
+        }
+        .loading {
+            text-align: center;
+            margin: 20px;
+        }
+        .pagination {
+            justify-content: center; /* Center align pagination */
         }
     </style>
 </head>
@@ -57,21 +50,27 @@
     <h1>Image Similarity Search</h1>
     <form id="searchForm" enctype="multipart/form-data">
         <label for="query_text">Enter Text Prompt:</label>
-        <input type="text" id="query_text" name="query_text">
+        <input type="text" id="query_text" name="query_text" class="form-control">
         
         <label for="query_image">Or Upload an Image:</label>
-        <input type="file" id="query_image" name="query_image" accept="image/*">
+        <input type="file" id="query_image" name="query_image" accept="image/*" class="form-control">
         
-        <button type="submit" class="btn btn-primary">Search</button>
+        <button type="submit" class="btn btn-primary mt-3">Search</button>
     </form>
     
-    <div id="results" class="card-container">
+    <div class="button-container">
+        <button id="selectAll" class="btn btn-secondary" disabled>Select All</button>
+        <button id="deleteSelected" class="btn btn-danger" disabled>Delete Selected</button>
+    </div>
+    
+    <div id="results" class="row">
         <!-- Results will be displayed here -->
     </div>
 
-    <div class="checkbox-container">
-        <input type="checkbox" id="selectAll"> <label for="selectAll">Select All</label>
-        <button id="deleteSelected" class="btn btn-danger">Delete Selected</button>
+    <div class="loading" id="loading" style="display: none;">
+        <div class="spinner-border" role="status">
+            <span class="sr-only">Loading...</span>
+        </div>
     </div>
     
     <nav aria-label="Page navigation">
@@ -97,24 +96,12 @@
     <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.min.js"></script>
     <script>
         let currentPage = 1;
-        const perPage = 10;
+        const perPage = 50;
 
         document.getElementById('searchForm').addEventListener('submit', async function(event) {
             event.preventDefault();
             currentPage = 1; // Reset to first page on new search
-
-            const formData = new FormData(this);
-            formData.append('page', currentPage);
-            formData.append('per_page', perPage);
-            
-            const response = await fetch('/similar-images', {
-                method: 'POST',
-                body: formData
-            });
-
-            const data = await response.json();
-            displayImages(data);
-            updatePageInfo();
+            loadPage();
         });
 
         document.getElementById('prevPage').addEventListener('click', function() {
@@ -130,6 +117,7 @@
         });
 
         function loadPage() {
+            document.getElementById('loading').style.display = 'block';
             const formData = new FormData(document.getElementById('searchForm'));
             formData.append('page', currentPage);
             formData.append('per_page', perPage);
@@ -142,6 +130,7 @@
             .then(data => {
                 displayImages(data);
                 updatePageInfo();
+                document.getElementById('loading').style.display = 'none';
             });
         }
 
@@ -152,7 +141,10 @@
             if (data.similar_images && data.similar_images.length > 0) {
                 data.similar_images.forEach(imagePath => {
                     const cardDiv = document.createElement('div');
-                    cardDiv.className = 'card';
+                    cardDiv.className = 'col-md-4 mb-3'; // Ensure 3 cards per row
+                    
+                    const card = document.createElement('div');
+                    card.className = 'card';
                     
                     const imgElement = document.createElement('img');
                     imgElement.src = `/images/${imagePath}`;
@@ -173,12 +165,18 @@
                     cardBody.className = 'card-body';
                     cardBody.appendChild(checkboxDiv);
                     
-                    cardDiv.appendChild(imgElement);
-                    cardDiv.appendChild(cardBody);
+                    card.appendChild(imgElement);
+                    card.appendChild(cardBody);
+                    cardDiv.appendChild(card);
                     resultsDiv.appendChild(cardDiv);
                 });
+
+                document.getElementById('selectAll').disabled = false;
+                document.getElementById('deleteSelected').disabled = false;
             } else {
                 resultsDiv.textContent = 'No similar images found.';
+                document.getElementById('selectAll').disabled = true;
+                document.getElementById('deleteSelected').disabled = true;
             }
         }
 
@@ -186,10 +184,10 @@
             document.getElementById('pageInfo').textContent = `Page ${currentPage}`;
         }
 
-        document.getElementById('selectAll').addEventListener('change', function() {
-            const checked = this.checked;
-            document.querySelectorAll('#results .card-checkbox input[type="checkbox"]').forEach(checkbox => {
-                checkbox.checked = checked;
+        document.getElementById('selectAll').addEventListener('click', function() {
+            const checkboxes = document.querySelectorAll('#results .card-checkbox input[type="checkbox"]');
+            checkboxes.forEach(checkbox => {
+                checkbox.checked = true;
             });
         });
 
@@ -214,9 +212,19 @@
                     const imgElements = document.querySelectorAll(`#results .card-checkbox input[value="${path}"]`);
                     imgElements.forEach(imgElement => imgElement.closest('.card').remove());
                 });
+                // Disable buttons if no images left
+                if (document.querySelectorAll('#results .card').length === 0) {
+                    document.getElementById('selectAll').disabled = true;
+                    document.getElementById('deleteSelected').disabled = true;
+                }
             } else {
                 alert('No images selected.');
             }
+        });
+
+        document.getElementById('results').addEventListener('change', function() {
+            const selectedCheckboxes = document.querySelectorAll('#results .card-checkbox input[type="checkbox"]:checked').length;
+            document.getElementById('deleteSelected').disabled = selectedCheckboxes === 0;
         });
     </script>
 </body>
