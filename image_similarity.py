@@ -42,6 +42,15 @@ def listen_for_abort():
         if sys.stdin.read(1) == 'q':
             abort_flag.set()  # Set abort flag to stop processing
 
+def if_exif_exists_reset(img):
+    try:
+        for orientation in ExifTags.TAGS.keys():
+            if ExifTags.TAGS[orientation] == 'Orientation':
+                break
+        
+    except (AttributeError, KeyError, IndexError):
+        pass
+
 def correct_image_orientation(image):
     try:
         for orientation in ExifTags.TAGS.keys():
