@@ -13,7 +13,7 @@ import piexif
 app = Flask(__name__)
 
 MAX_PAGE_SIZE = 50
-IMAGE_DIR = 'F:/'
+IMAGE_DIR = './data'
 DATABASE = 'image_similarity.db'
 CACHE_DIR = 'cache/'
 

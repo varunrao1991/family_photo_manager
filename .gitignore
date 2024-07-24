@@ -4,3 +4,5 @@
 
 # Ignore the cache directory
 cache/
+data/
+myenv/

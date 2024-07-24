@@ -41,6 +41,7 @@ def listen_for_abort():
     while not abort_flag.is_set():
         if sys.stdin.read(1) == 'q':
             abort_flag.set()  # Set abort flag to stop processing
+    print("Operation aborted")
 
 def if_exif_exists_reset(img):
     try:
@@ -101,6 +102,7 @@ def process_images(image_paths, feature_queue, existing_images, process_progress
             print(f"Error processing {image_path}: {e}")
 
     feature_queue.put(None)  # Signal that processing is done
+    print("Completed processing of images")
 
 def write_to_database(feature_queue, db_filename, write_progress):
     conn = sqlite3.connect(db_filename)
@@ -119,8 +121,10 @@ def write_to_database(feature_queue, db_filename, write_progress):
 
     conn.commit()
     conn.close()
+    print("Writing complete, connection closed")
 
 def create_database(folder_name):
+    print(f"Folder is {folder_name}")
     global feature_queue  # Ensure global queue is used
     db_filename = 'image_similarity.db'
 
@@ -159,9 +163,6 @@ def create_database(folder_name):
     process_thread.join()
     write_thread.join()
 
-    # Ensure all items are processed
-    feature_queue.join()
-
     print(f"Database updated: {db_filename}")
 
 if __name__ == '__main__':
@@ -173,3 +174,4 @@ if __name__ == '__main__':
 
     folder_name = args.folder_name
     create_database(folder_name)
+    print("Closed main")
