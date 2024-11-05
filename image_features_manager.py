@@ -84,7 +84,7 @@ def collect_image_paths(folder_path, existing_images):
             if abort_flag.is_set():
                 return image_paths
             if filename.lower().endswith(('.png', '.jpg', '.jpeg')):
-                image_path = os.path.join(dirpath, filename)
+                image_path = os.path.join(dirpath, filename).replace('\\', '/')
                 if image_path not in existing_images:
                     image_paths.append(image_path)
     return image_paths
@@ -126,7 +126,7 @@ def write_to_database(feature_queue, db_filename, write_progress):
 def create_database(folder_name):
     print(f"Folder is {folder_name}")
     global feature_queue  # Ensure global queue is used
-    db_filename = 'image_similarity.db'
+    db_filename = 'image_features.db'
 
     # SQLite database initialization
     conn = sqlite3.connect(db_filename)
@@ -167,7 +167,7 @@ def create_database(folder_name):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Create image similarity database using CLIP ViT-B/16 model.')
-    parser.add_argument('folder_name', type=str, nargs='?', default='F:/', help='Folder name within the default directory to scan for images')
+    parser.add_argument('folder_name', type=str, nargs='?', default='../images', help='Folder name within the default directory to scan for images')
     args = parser.parse_args()
 
     print("Press 'q' to abort...")    

@@ -13,8 +13,8 @@ import piexif
 app = Flask(__name__)
 
 MAX_PAGE_SIZE = 50
-IMAGE_DIR = './data'
-DATABASE = 'image_similarity.db'
+IMAGE_DIR = '../images'
+DATABASE = 'image_features.db'
 CACHE_DIR = 'cache/'
 
 # Ensure the cache directory exists
@@ -166,9 +166,18 @@ def serve_image(filename):
     else:
         abort(404)
 
+@app.route('/bigimages/<path:filename>')
+def serve_image_big(filename):
+    image_path = os.path.join(IMAGE_DIR, filename)
+    
+    if os.path.isfile(image_path):
+        return send_from_directory(IMAGE_DIR, filename)
+    else:
+        abort(404)
+
 def create_thumbnail(image_path, cache_path):
     with Image.open(image_path) as img:
-        img.thumbnail((300, 300))
+        img.thumbnail((200, 200))
         img.save(cache_path)
 
 @app.route('/rotate-images', methods=['POST'])
@@ -217,7 +226,7 @@ def delete_images():
 
     def delete_operation(c):
         for image_path in image_paths:
-            file_path = os.path.join(IMAGE_DIR, image_path)
+            file_path = os.path.join(IMAGE_DIR, image_path).replace("\\","/")
             print(file_path)
             c.execute("DELETE FROM images WHERE filename = ?", (file_path,))
             if os.path.isfile(file_path):
