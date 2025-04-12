@@ -5,294 +5,11 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Visual Search | Photo Manager</title>
+
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6.0.0/css/all.min.css">
-    <style>
-        :root {
-            --primary-color: #2563eb;
-            --hover-color: #1d4ed8;
-            --text-color: #1f2937;
-            --bg-color: #f9fafb;
-            --card-bg: #ffffff;
-        }
 
-        body {
-            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
-            background-color: var(--bg-color);
-            color: var(--text-color);
-            line-height: 1.6;
-            padding-bottom: 80px;
-        }
-
-        .navbar {
-            backdrop-filter: blur(10px);
-            background-color: rgba(255, 255, 255, 0.85);
-            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
-        }
-
-        .search-container {
-            max-width: 800px;
-            margin: 40px auto;
-            padding: 0 20px;
-        }
-
-        .search-card {
-            background: var(--card-bg);
-            border-radius: 12px;
-            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.05);
-            padding: 30px;
-            margin-bottom: 30px;
-        }
-
-        .gallery {
-            display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
-            gap: 16px;
-            margin: 0 auto;
-        }
-
-        .photo-card {
-            position: relative;
-            border-radius: 8px;
-            overflow: hidden;
-            transition: transform 0.2s ease, box-shadow 0.2s ease;
-            aspect-ratio: 1;
-            background: #f0f0f0;
-        }
-
-        .photo-card:hover {
-            transform: translateY(-4px);
-            box-shadow: 0 10px 20px rgba(0, 0, 0, 0.1);
-        }
-
-        .photo-card.selected {
-            box-shadow: 0 0 0 3px var(--primary-color);
-        }
-
-        .photo-img {
-            width: 100%;
-            height: 100%;
-            object-fit: cover;
-            transition: opacity 0.3s ease;
-        }
-
-        .photo-card.selected .photo-img {
-            opacity: 0.8;
-        }
-
-        .photo-overlay {
-            position: absolute;
-            bottom: 0;
-            left: 0;
-            right: 0;
-            padding: 12px;
-            background: linear-gradient(transparent, rgba(0, 0, 0, 0.7));
-            color: white;
-            font-size: 13px;
-            white-space: nowrap;
-            overflow: hidden;
-            text-overflow: ellipsis;
-        }
-
-        .photo-actions {
-            position: absolute;
-            top: 8px;
-            right: 8px;
-            display: flex;
-            gap: 6px;
-            opacity: 0;
-            transition: opacity 0.2s ease;
-        }
-
-        .photo-card:hover .photo-actions {
-            opacity: 1;
-        }
-
-        .photo-action-btn {
-            width: 30px;
-            height: 30px;
-            border-radius: 50%;
-            background: rgba(0, 0, 0, 0.7);
-            color: white;
-            border: none;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            cursor: pointer;
-            transition: background 0.2s ease;
-        }
-
-        .photo-action-btn:hover {
-            background: var(--primary-color);
-        }
-
-        .action-bar {
-            position: fixed;
-            bottom: 20px;
-            left: 50%;
-            transform: translateX(-50%);
-            background: white;
-            padding: 12px 20px;
-            border-radius: 50px;
-            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
-            display: flex;
-            gap: 12px;
-            z-index: 1000;
-            opacity: 0;
-            transition: opacity 0.3s ease;
-        }
-
-        .action-bar.visible {
-            opacity: 1;
-        }
-
-        .btn-action {
-            border-radius: 50px;
-            padding: 8px 16px;
-            font-weight: 500;
-            display: flex;
-            align-items: center;
-            gap: 6px;
-        }
-
-        .loading {
-            display: flex;
-            justify-content: center;
-            padding: 40px;
-        }
-
-        .spinner {
-            width: 3rem;
-            height: 3rem;
-        }
-
-        .infinite-scroll-trigger {
-            height: 100px;
-        }
-
-        /* Modal styles */
-        .modal-content {
-            border: none;
-            border-radius: 12px;
-            overflow: hidden;
-        }
-
-        .modal-body {
-            padding: 0;
-        }
-
-        #largeImage {
-            max-height: 80vh;
-            width: auto;
-            max-width: 100%;
-            margin: 0 auto;
-            display: block;
-            transition: transform 0.3s ease;
-        }
-
-        .modal-toolbar {
-            position: absolute;
-            bottom: 20px;
-            left: 50%;
-            transform: translateX(-50%);
-            background: rgba(0, 0, 0, 0.7);
-            border-radius: 50px;
-            padding: 8px 16px;
-            display: flex;
-            gap: 10px;
-            z-index: 1050;
-        }
-
-        .modal-toolbar .btn {
-            color: white;
-            background: transparent;
-            border: none;
-            padding: 8px 12px;
-        }
-
-        .modal-toolbar .btn:hover {
-            background: rgba(255, 255, 255, 0.2);
-        }
-
-        /* Custom file input */
-        .file-input-container {
-            position: relative;
-            margin-top: 12px;
-        }
-
-        .file-input-label {
-            display: block;
-            padding: 12px;
-            border: 2px dashed #e5e7eb;
-            border-radius: 8px;
-            text-align: center;
-            cursor: pointer;
-            transition: all 0.2s ease;
-        }
-
-        .file-input-label:hover {
-            border-color: var(--primary-color);
-            background: rgba(37, 99, 235, 0.05);
-        }
-
-        .file-input {
-            display: none;
-        }
-
-        .preview-image {
-            max-width: 100px;
-            max-height: 100px;
-            margin-top: 10px;
-            border-radius: 4px;
-            display: none;
-        }
-
-        /* Delete confirmation modal */
-        .confirmation-thumbnails {
-            display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
-            gap: 10px;
-            max-height: 300px;
-            overflow-y: auto;
-            margin: 15px 0;
-            padding: 10px;
-            border: 1px solid #eee;
-            border-radius: 8px;
-        }
-
-        .thumbnail-item {
-            position: relative;
-            border-radius: 4px;
-            overflow: hidden;
-            aspect-ratio: 1;
-        }
-
-        .thumbnail-img {
-            width: 100%;
-            height: 100%;
-            object-fit: cover;
-        }
-
-        .thumbnail-checkbox {
-            position: absolute;
-            top: 5px;
-            left: 5px;
-            z-index: 1;
-        }
-
-        .checkbox-label {
-            position: absolute;
-            top: 0;
-            left: 0;
-            right: 0;
-            bottom: 0;
-            cursor: pointer;
-        }
-
-        .thumbnail-item.selected {
-            box-shadow: 0 0 0 2px var(--primary-color);
-        }
-    </style>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
 </head>
 
 <body>
@@ -314,13 +31,14 @@
             <form id="searchForm">
                 <div class="mb-3">
                     <label for="query_text" class="form-label">Search by text</label>
-                    <input type="text" class="form-control" id="query_text" placeholder="e.g. beach sunset, family gathering">
+                    <input type="text" class="form-control" id="query_text"
+                        placeholder="e.g. beach sunset, family gathering">
                 </div>
                 <div class="mb-3">
                     <label class="form-label">Or search by image</label>
                     <div class="file-input-container">
                         <label for="query_image" class="file-input-label">
-                            <i class="fas fa-cloud-upload-alt fa-2x mb-2" style="color: #9ca3af;"></i>
+                            <i class="fas fa-cloud-upload-alt fa-2x mb-2" style="color:#9ca3af"></i>
                             <p class="mb-1">Drag & drop or click to browse</p>
                             <p class="small text-muted">Supports JPG, PNG, WEBP</p>
                         </label>
@@ -333,9 +51,8 @@
                 </button>
             </form>
         </div>
-
         <div id="results" class="gallery"></div>
-        <div class="loading" id="loading" style="display: none;">
+        <div class="loading" id="loading" style="display:none">
             <div class="spinner-border text-primary spinner" role="status">
                 <span class="visually-hidden">Loading...</span>
             </div>
@@ -358,38 +75,26 @@
         </button>
     </div>
 
-    <!-- Image Preview Modal -->
-    <div class="modal fade" id="imageModal" tabindex="-1" aria-hidden="true">
-        <div class="modal-dialog modal-dialog-centered modal-xl">
+    <div class="modal fade" id="imageModal" tabindex="-1" aria-labelledby="imageModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered modal-lg">
             <div class="modal-content">
-                <div class="modal-header border-0">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="imageModalLabel">Image Preview</h5>
                     <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                 </div>
-                <div class="modal-body text-center p-0">
-                    <img id="largeImage" src="" alt="Preview" class="img-fluid">
+                <div class="modal-body modal-fullscreen-viewport"> <img id="largeImage" src="" alt="Full Image">
                 </div>
                 <div class="modal-toolbar">
-                    <button class="btn" id="zoomInModal">
-                        <i class="fas fa-search-plus"></i>
-                    </button>
-                    <button class="btn" id="zoomOutModal">
-                        <i class="fas fa-search-minus"></i>
-                    </button>
-                    <button class="btn" id="rotateLeftModal">
-                        <i class="fas fa-undo"></i>
-                    </button>
-                    <button class="btn" id="rotateRightModal">
-                        <i class="fas fa-redo"></i>
-                    </button>
-                    <button class="btn" id="downloadImage">
-                        <i class="fas fa-download"></i>
-                    </button>
+                    <button class="btn" id="zoomInModal"><i class="fas fa-search-plus"></i></button>
+                    <button class="btn" id="zoomOutModal"><i class="fas fa-search-minus"></i></button>
+                    <button class="btn" id="rotateLeftModal"><i class="fas fa-undo"></i></button>
+                    <button class="btn" id="rotateRightModal"><i class="fas fa-redo"></i></button>
+                    <button class="btn" id="downloadImage"><i class="fas fa-download"></i></button>
                 </div>
             </div>
         </div>
     </div>
 
-    <!-- Delete Confirmation Modal -->
     <div class="modal fade" id="deleteConfirmationModal" tabindex="-1" aria-hidden="true">
         <div class="modal-dialog">
             <div class="modal-content">
@@ -400,7 +105,6 @@
                 <div class="modal-body">
                     <p>Are you sure you want to delete <span id="delete-count">0</span> selected photos?</p>
                     <div class="confirmation-thumbnails" id="confirmationThumbnails">
-                        <!-- Thumbnails will be inserted here -->
                     </div>
                     <div class="form-check mt-2">
                         <input class="form-check-input" type="checkbox" id="confirmDeleteCheckbox">
@@ -417,7 +121,6 @@
         </div>
     </div>
 
-    <!-- Help Modal -->
     <div class="modal fade" id="helpModal" tabindex="-1" aria-hidden="true">
         <div class="modal-dialog">
             <div class="modal-content">
@@ -444,493 +147,11 @@
         </div>
     </div>
 
+    <div class="notification-container" id="notificationContainer"></div>
+
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
-    <script>
-        // Configuration
-        const config = {
-            perPage: 30,
-            infiniteScrollThreshold: 200,
-            zoomStep: 0.2,
-            rotateStep: 90
-        };
 
-        // State management
-        let state = {
-            currentPage: 1,
-            isLoading: false,
-            hasMore: true,
-            selectedImages: new Set(),
-            lastSearch: null,
-            zoomLevel: 1,
-            currentRotation: 0,
-            currentImage: null
-        };
-
-        // DOM Elements
-        const elements = {
-            searchForm: document.getElementById('searchForm'),
-            results: document.getElementById('results'),
-            loading: document.getElementById('loading'),
-            actionBar: document.getElementById('actionBar'),
-            selectAll: document.getElementById('selectAll'),
-            rotateLeftSelected: document.getElementById('rotateLeftSelected'),
-            rotateRightSelected: document.getElementById('rotateRightSelected'),
-            deleteSelected: document.getElementById('deleteSelected'),
-            selectedCount: document.getElementById('selected-count'),
-            queryText: document.getElementById('query_text'),
-            queryImage: document.getElementById('query_image'),
-            previewImage: document.getElementById('previewImage'),
-            infiniteScrollTrigger: document.getElementById('infiniteScrollTrigger'),
-            imageModal: new bootstrap.Modal(document.getElementById('imageModal')),
-            largeImage: document.getElementById('largeImage'),
-            zoomInModal: document.getElementById('zoomInModal'),
-            zoomOutModal: document.getElementById('zoomOutModal'),
-            rotateLeftModal: document.getElementById('rotateLeftModal'),
-            rotateRightModal: document.getElementById('rotateRightModal'),
-            downloadImage: document.getElementById('downloadImage'),
-            helpModal: new bootstrap.Modal(document.getElementById('helpModal')),
-            toggleHelp: document.getElementById('toggle-help'),
-            deleteConfirmationModal: new bootstrap.Modal(document.getElementById('deleteConfirmationModal')),
-            confirmationThumbnails: document.getElementById('confirmationThumbnails'),
-            deleteCount: document.getElementById('delete-count'),
-            confirmDeleteCheckbox: document.getElementById('confirmDeleteCheckbox'),
-            confirmDeleteBtn: document.getElementById('confirmDeleteBtn')
-        };
-
-        // Initialize
-        document.addEventListener('DOMContentLoaded', () => {
-            setupEventListeners();
-            setupIntersectionObserver();
-        });
-
-        function setupEventListeners() {
-            // Search form
-            elements.searchForm.addEventListener('submit', handleSearchSubmit);
-
-            // File input preview
-            elements.queryImage.addEventListener('change', handleFileSelect);
-
-            // Action buttons
-            elements.selectAll.addEventListener('click', selectAllImages);
-            elements.rotateLeftSelected.addEventListener('click', () => rotateSelected('left'));
-            elements.rotateRightSelected.addEventListener('click', () => rotateSelected('right'));
-            elements.deleteSelected.addEventListener('click', showDeleteConfirmation);
-
-            // Modal controls
-            elements.zoomInModal.addEventListener('click', () => zoomImage('in'));
-            elements.zoomOutModal.addEventListener('click', () => zoomImage('out'));
-            elements.rotateLeftModal.addEventListener('click', () => rotateImage(-config.rotateStep));
-            elements.rotateRightModal.addEventListener('click', () => rotateImage(config.rotateStep));
-            elements.downloadImage.addEventListener('click', downloadImage);
-
-            // Delete confirmation
-            elements.confirmDeleteCheckbox.addEventListener('change', (e) => {
-                elements.confirmDeleteBtn.disabled = !e.target.checked;
-            });
-            elements.confirmDeleteBtn.addEventListener('click', deleteSelected);
-
-            // Help
-            elements.toggleHelp.addEventListener('click', () => elements.helpModal.show());
-
-            // Window events
-            window.addEventListener('scroll', handleScroll);
-        }
-
-        function setupIntersectionObserver() {
-            const observer = new IntersectionObserver((entries) => {
-                if (entries[0].isIntersecting && !state.isLoading && state.hasMore) {
-                    loadMoreResults();
-                }
-            }, { threshold: 0.1 });
-
-            observer.observe(elements.infiniteScrollTrigger);
-        }
-
-        async function handleSearchSubmit(e) {
-            e.preventDefault();
-            
-            state.currentPage = 1;
-            state.hasMore = true;
-            state.selectedImages.clear();
-            updateActionBar();
-            
-            elements.results.innerHTML = '';
-            toggleLoading(true);
-
-            const formData = new FormData();
-            if (elements.queryText.value) {
-                formData.append('query_text', elements.queryText.value);
-            }
-            if (elements.queryImage.files[0]) {
-                formData.append('query_image', elements.queryImage.files[0]);
-            }
-            formData.append('page', state.currentPage);
-            formData.append('per_page', config.perPage);
-
-            try {
-                const response = await fetch('/similar-images', {
-                    method: 'POST',
-                    body: formData
-                });
-                const data = await response.json();
-                
-                displayResults(data.similar_images || []);
-                state.lastSearch = formData;
-            } catch (error) {
-                console.error('Search error:', error);
-            } finally {
-                toggleLoading(false);
-            }
-        }
-
-        async function loadMoreResults() {
-            if (state.isLoading || !state.hasMore) return;
-            
-            state.currentPage++;
-            toggleLoading(true);
-            
-            try {
-                const formData = state.lastSearch;
-                formData.set('page', state.currentPage);
-                
-                const response = await fetch('/similar-images', {
-                    method: 'POST',
-                    body: formData
-                });
-                const data = await response.json();
-                
-                if (data.similar_images && data.similar_images.length > 0) {
-                    displayResults(data.similar_images, true);
-                } else {
-                    state.hasMore = false;
-                }
-            } catch (error) {
-                console.error('Load more error:', error);
-            } finally {
-                toggleLoading(false);
-            }
-        }
-
-        function displayResults(images, append = false) {
-            if (!append) {
-                elements.results.innerHTML = '';
-            }
-
-            if (images.length === 0 && !append) {
-                elements.results.innerHTML = `
-                    <div class="col-12 text-center py-5">
-                        <i class="fas fa-image fa-3x mb-3 text-muted"></i>
-                        <h5 class="text-muted">No images found</h5>
-                        <p>Try a different search term or upload another image</p>
-                    </div>
-                `;
-                return;
-            }
-
-            images.forEach(imagePath => {
-                const fileName = imagePath.split('/').pop();
-                const card = document.createElement('div');
-                card.className = 'photo-card';
-                card.dataset.imagePath = imagePath;
-                
-                const img = document.createElement('img');
-                img.className = 'photo-img';
-                img.src = `/images/${imagePath}`;
-                img.loading = 'lazy';
-                img.alt = fileName;
-                
-                const overlay = document.createElement('div');
-                overlay.className = 'photo-overlay';
-                overlay.textContent = fileName;
-                
-                // Action buttons container
-                const actions = document.createElement('div');
-                actions.className = 'photo-actions';
-                
-                // Rotate left button
-                const rotateLeftBtn = document.createElement('button');
-                rotateLeftBtn.className = 'photo-action-btn';
-                rotateLeftBtn.innerHTML = '<i class="fas fa-undo"></i>';
-                rotateLeftBtn.title = 'Rotate Left';
-                rotateLeftBtn.addEventListener('click', (e) => {
-                    e.stopPropagation();
-                    rotateSingleImage(imagePath, 'left');
-                });
-                
-                // Rotate right button
-                const rotateRightBtn = document.createElement('button');
-                rotateRightBtn.className = 'photo-action-btn';
-                rotateRightBtn.innerHTML = '<i class="fas fa-redo"></i>';
-                rotateRightBtn.title = 'Rotate Right';
-                rotateRightBtn.addEventListener('click', (e) => {
-                    e.stopPropagation();
-                    rotateSingleImage(imagePath, 'right');
-                });
-                
-                // Delete button
-                const deleteBtn = document.createElement('button');
-                deleteBtn.className = 'photo-action-btn';
-                deleteBtn.innerHTML = '<i class="fas fa-trash"></i>';
-                deleteBtn.title = 'Delete';
-                deleteBtn.addEventListener('click', (e) => {
-                    e.stopPropagation();
-                    state.selectedImages.add(imagePath);
-                    showDeleteConfirmation();
-                });
-                
-                actions.appendChild(rotateLeftBtn);
-                actions.appendChild(rotateRightBtn);
-                actions.appendChild(deleteBtn);
-                
-                // Click events
-                card.addEventListener('click', (e) => {
-                    if (e.target.classList.contains('photo-action-btn')) return;
-                    toggleImageSelection(card);
-                });
-                
-                card.addEventListener('dblclick', () => {
-                    openImageModal(imagePath, fileName);
-                });
-                
-                card.appendChild(img);
-                card.appendChild(overlay);
-                card.appendChild(actions);
-                elements.results.appendChild(card);
-            });
-        }
-
-        function toggleImageSelection(card) {
-            const imagePath = card.dataset.imagePath;
-            
-            if (state.selectedImages.has(imagePath)) {
-                state.selectedImages.delete(imagePath);
-                card.classList.remove('selected');
-            } else {
-                state.selectedImages.add(imagePath);
-                card.classList.add('selected');
-            }
-            
-            updateActionBar();
-        }
-
-        function selectAllImages() {
-            const allCards = document.querySelectorAll('.photo-card');
-            const allPaths = Array.from(allCards).map(card => card.dataset.imagePath);
-            
-            if (state.selectedImages.size === allPaths.length) {
-                // Deselect all
-                allCards.forEach(card => card.classList.remove('selected'));
-                state.selectedImages.clear();
-            } else {
-                // Select all
-                allCards.forEach(card => card.classList.add('selected'));
-                allPaths.forEach(path => state.selectedImages.add(path));
-            }
-            
-            updateActionBar();
-        }
-
-        function updateActionBar() {
-            const count = state.selectedImages.size;
-            
-            if (count > 0) {
-                elements.actionBar.classList.add('visible');
-                elements.selectedCount.classList.remove('d-none');
-                elements.selectedCount.textContent = `${count} selected`;
-                
-                // Update button states
-                elements.deleteSelected.disabled = false;
-                elements.rotateLeftSelected.disabled = false;
-                elements.rotateRightSelected.disabled = false;
-            } else {
-                elements.actionBar.classList.remove('visible');
-                elements.selectedCount.classList.add('d-none');
-            }
-        }
-
-        async function rotateSelected(direction) {
-            if (state.selectedImages.size === 0) return;
-            
-            try {
-                const response = await fetch('/rotate-images', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        images: Array.from(state.selectedImages),
-                        direction
-                    })
-                });
-                
-                const result = await response.json();
-                if (result.success) {
-                    // Refresh the view
-                    state.selectedImages.clear();
-                    updateActionBar();
-                    handleSearchSubmit(new Event('submit'));
-                }
-            } catch (error) {
-                console.error('Rotate error:', error);
-            }
-        }
-
-        async function rotateSingleImage(imagePath, direction) {
-            try {
-                const response = await fetch('/rotate-images', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        images: [imagePath],
-                        direction
-                    })
-                });
-                
-                const result = await response.json();
-                if (result.success) {
-                    // Refresh the view
-                    handleSearchSubmit(new Event('submit'));
-                }
-            } catch (error) {
-                console.error('Rotate error:', error);
-            }
-        }
-
-        function showDeleteConfirmation() {
-            if (state.selectedImages.size === 0) return;
-            
-            elements.deleteCount.textContent = state.selectedImages.size;
-            elements.confirmationThumbnails.innerHTML = '';
-            
-            // Create thumbnails for confirmation
-            state.selectedImages.forEach(imagePath => {
-                const fileName = imagePath.split('/').pop();
-                const thumbnailItem = document.createElement('div');
-                thumbnailItem.className = 'thumbnail-item selected';
-                thumbnailItem.dataset.imagePath = imagePath;
-                
-                const img = document.createElement('img');
-                img.className = 'thumbnail-img';
-                img.src = `/images/${imagePath}`;
-                img.alt = fileName;
-                
-                const checkbox = document.createElement('input');
-                checkbox.type = 'checkbox';
-                checkbox.className = 'thumbnail-checkbox';
-                checkbox.checked = true;
-                checkbox.id = `thumb-${imagePath.replace(/[^a-z0-9]/gi, '-')}`;
-                
-                const label = document.createElement('label');
-                label.className = 'checkbox-label';
-                label.htmlFor = checkbox.id;
-                
-                checkbox.addEventListener('change', (e) => {
-                    thumbnailItem.classList.toggle('selected', e.target.checked);
-                    if (!e.target.checked) {
-                        state.selectedImages.delete(imagePath);
-                    } else {
-                        state.selectedImages.add(imagePath);
-                    }
-                    elements.deleteCount.textContent = state.selectedImages.size;
-                });
-                
-                thumbnailItem.appendChild(img);
-                thumbnailItem.appendChild(checkbox);
-                thumbnailItem.appendChild(label);
-                elements.confirmationThumbnails.appendChild(thumbnailItem);
-            });
-            
-            // Reset confirmation checkbox
-            elements.confirmDeleteCheckbox.checked = false;
-            elements.confirmDeleteBtn.disabled = true;
-            
-            elements.deleteConfirmationModal.show();
-        }
-
-        async function deleteSelected() {
-            if (state.selectedImages.size === 0) return;
-            
-            try {
-                const response = await fetch('/delete-images', {
-                    method: 'DELETE',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        images: Array.from(state.selectedImages)
-                    })
-                });
-                
-                const result = await response.json();
-                if (result.message) {
-                    // Refresh the view
-                    state.selectedImages.clear();
-                    updateActionBar();
-                    elements.deleteConfirmationModal.hide();
-                    handleSearchSubmit(new Event('submit'));
-                }
-            } catch (error) {
-                console.error('Delete error:', error);
-            }
-        }
-
-        function openImageModal(imagePath, fileName) {
-            state.currentImage = { path: imagePath, name: fileName };
-            state.zoomLevel = 1;
-            state.currentRotation = 0;
-            
-            elements.largeImage.src = `/bigimages/${imagePath}`;
-            elements.largeImage.style.transform = 'scale(1) rotate(0deg)';
-            elements.imageModal.show();
-        }
-
-        function zoomImage(direction) {
-            if (direction === 'in') {
-                state.zoomLevel += config.zoomStep;
-            } else {
-                state.zoomLevel = Math.max(0.5, state.zoomLevel - config.zoomStep);
-            }
-            
-            elements.largeImage.style.transform = `scale(${state.zoomLevel}) rotate(${state.currentRotation}deg)`;
-        }
-
-        function rotateImage(degrees) {
-            state.currentRotation += degrees;
-            elements.largeImage.style.transform = `scale(${state.zoomLevel}) rotate(${state.currentRotation}deg)`;
-        }
-
-        function downloadImage() {
-            if (!state.currentImage) return;
-            
-            const link = document.createElement('a');
-            link.href = `/bigimages/${state.currentImage.path}`;
-            link.download = state.currentImage.name;
-            document.body.appendChild(link);
-            link.click();
-            document.body.removeChild(link);
-        }
-
-        function handleFileSelect(e) {
-            const file = e.target.files[0];
-            if (file) {
-                const reader = new FileReader();
-                reader.onload = (event) => {
-                    elements.previewImage.src = event.target.result;
-                    elements.previewImage.style.display = 'block';
-                };
-                reader.readAsDataURL(file);
-            }
-        }
-
-        function handleScroll() {
-            // Show/hide action bar based on scroll position
-            if (window.scrollY > 100) {
-                elements.actionBar.classList.add('visible');
-            } else if (state.selectedImages.size === 0) {
-                elements.actionBar.classList.remove('visible');
-            }
-        }
-
-        function toggleLoading(show) {
-            state.isLoading = show;
-            elements.loading.style.display = show ? 'flex' : 'none';
-        }
-    </script>
+    <script src="{{ url_for('static', filename='js/script.js') }}"></script>
 </body>
+
 </html>

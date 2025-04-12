@@ -10,20 +10,33 @@ import threading
 import queue
 import piexif
 import argparse
+from dotenv import load_dotenv
+import logging
+import struct
+
+# Load environment variables
+load_dotenv()
 
 app = Flask(__name__)
 
-MAX_PAGE_SIZE = 50
-DATABASE = 'tmp/image_features.db'
-CACHE_DIR = 'tmp/cache/'
+# Configuration from environment
+MAX_PAGE_SIZE = int(os.getenv('MAX_PAGE_SIZE', 50))
+DATABASE = os.getenv('DATABASE', 'tmp/image_features.db')
+CACHE_DIR = os.getenv('CACHE_DIR', 'tmp/cache/')
+CLIP_MODEL = os.getenv('CLIP_MODEL', 'ViT-B/32')
+DEVICE = os.getenv('DEVICE', 'auto')
 
-# Ensure the cache directory exists
-if not os.path.exists(CACHE_DIR):
-    os.makedirs(CACHE_DIR)
+# Determine device
+if DEVICE == 'auto':
+    device = "cuda" if torch.cuda.is_available() else "cpu"
+else:
+    device = DEVICE
+
+# Ensure directories exist
+os.makedirs(CACHE_DIR, exist_ok=True)
 
 # Initialize CLIP model
-device = "cuda" if torch.cuda.is_available() else "cpu"
-model, preprocess = clip.load("ViT-B/32", device=device)
+model, preprocess = clip.load(CLIP_MODEL, device=device)
 model.eval()
 
 # CLIP preprocessing pipeline
@@ -77,40 +90,90 @@ def queue_db_operation(operation):
     with db_lock:
         db_queue.put(operation)
 
-def compute_similarity(query_text, query_image=None):
-    similarities = []
+@app.route('/')
+def index():
+    return render_template('index.html')
+
+def compute_similarity(query_text=None, query_image=None):
+    """Compute similarity between query and database images with proper feature normalization
+    
+    Args:
+        query_text: Optional text query string
+        query_image: Optional PIL Image object
+    
+    Returns:
+        List of (filename, similarity_score) tuples sorted by descending similarity
+    """
     conn = sqlite3.connect(DATABASE)
     conn.row_factory = sqlite3.Row
     c = conn.cursor()
 
-    if query_image:
-        image = transform(query_image).unsqueeze(0).to(device)
-        with torch.no_grad():
-            image_features = model.encode_image(image)
-            c.execute("SELECT * FROM images")
-            rows = c.fetchall()
-            for row in rows:
-                db_features = np.frombuffer(row['features'], dtype=np.float32)
-                similarity = (image_features @ torch.tensor(db_features).to(device)).cpu().numpy().item()
-                similarities.append((row['filename'], similarity))
-    else:
-        with torch.no_grad():
-            text = clip.tokenize([query_text]).to(device)
-            text_features = model.encode_text(text)
-            c.execute("SELECT * FROM images")
-            rows = c.fetchall()
-            for row in rows:
-                db_features = np.frombuffer(row['features'], dtype=np.float32)
-                similarity = (text_features @ torch.tensor(db_features).to(device)).cpu().numpy().item()
-                similarities.append((row['filename'], similarity))
+    def normalize_features(features):
+        """Normalize features to unit length for cosine similarity"""
+        return features / features.norm(dim=-1, keepdim=True)
 
-    similarities.sort(key=lambda x: x[1], reverse=True)
-    conn.close()
-    return similarities
-
-@app.route('/')
-def index():
-    return render_template('index.html')
+    try:
+        with torch.no_grad():
+            text_features = None
+            image_features = None
+            combined_features = None
+            
+            # Process text query if provided
+            if query_text:
+                text_inputs = clip.tokenize([query_text]).to(device)
+                text_features = model.encode_text(text_inputs)
+                text_features = normalize_features(text_features)
+            
+            # Process image query if provided
+            if query_image:
+                image_input = transform(query_image).unsqueeze(0).to(device)
+                image_features = model.encode_image(image_input)
+                image_features = normalize_features(image_features)
+            
+            # Validate at least one query type was provided
+            if text_features is None and image_features is None:
+                return []
+            
+            # Combine features for hybrid search
+            if text_features is not None and image_features is not None:
+                # Dynamic weighting based on feature magnitudes
+                text_weight = 0.5 * (1 + text_features.norm().item())
+                image_weight = 0.5 * (1 + image_features.norm().item())
+                combined_features = (text_weight * text_features + image_weight * image_features) / 2
+            elif text_features is not None:
+                combined_features = text_features
+            else:
+                combined_features = image_features
+            
+            # Normalize final combined features
+            combined_features = normalize_features(combined_features)
+            
+            # Get all database features at once for efficiency
+            c.execute("SELECT filename, features FROM images")
+            rows = c.fetchall()
+            
+            # Pre-allocate results list
+            similarities = []
+            
+            # Process database features in batches if needed for large databases
+            for row in rows:
+                db_features = torch.frombuffer(row['features'], 
+                                             dtype=torch.float32).to(device)
+                db_features = normalize_features(db_features)
+                
+                # Cosine similarity
+                similarity = torch.dot(combined_features.flatten(), db_features.flatten()).item()
+                similarities.append((row['filename'], similarity))
+            
+            # Sort by descending similarity
+            similarities.sort(key=lambda x: x[1], reverse=True)
+            return similarities
+            
+    except Exception as e:
+        logging.error(f"Error computing similarities: {str(e)}")
+        return []
+    finally:
+        conn.close()
 
 @app.route('/similar-images', methods=['POST'])
 def similar_images():
@@ -119,31 +182,49 @@ def similar_images():
     page = int(request.form.get('page', 1))
     per_page = int(request.form.get('per_page', MAX_PAGE_SIZE))
 
-    if query_text:
-        similarities = compute_similarity(query_text)
-    elif query_image:
-        query_image = Image.open(query_image).convert('RGB')
-        similarities = compute_similarity(None, query_image)
-    else:
+    if not query_text and not query_image:
         return jsonify({'error': 'No query provided'}), 400
+
+    # Process query image if provided
+    img = None
+    if query_image:
+        img = Image.open(query_image).convert('RGB')
+
+    similarities = compute_similarity(query_text, img)
 
     start_index = (page - 1) * per_page
     end_index = start_index + per_page
     paged_similarities = similarities[start_index:end_index]
     image_urls = [os.path.join(image[0]).replace('\\', '/') for image in paged_similarities]
     
-    return jsonify({'similar_images': image_urls, 'total_count': len(similarities)})
+    return jsonify({
+        'similar_images': image_urls,
+        'total_count': len(similarities),
+        'search_type': 'hybrid' if query_text and query_image else 'text' if query_text else 'image'
+    })
 
 def if_exif_exists_reset(img):
     try:
-        exif_data = img.info.get('exif', None)
+        exif_data = img.info.get('exif')
         if exif_data:
-            exif_data = piexif.load(exif_data)
-            exif_data['0th'][piexif.ImageIFD.Orientation] = 1
-            return piexif.dump(exif_data)
+            if not isinstance(exif_data, bytes) or len(exif_data) < 2:
+                print("Warning: Invalid or too short EXIF data encountered.")
+                return None  # Or handle differently, e.g., return original exif_data
+
+            try:
+                exif_dict = piexif.load(exif_data)
+                exif_dict['0th'][piexif.ImageIFD.Orientation] = 1
+                return piexif.dump(exif_dict)
+            except struct.error as e:
+                print(f"Error loading EXIF data (struct error): {e}")
+                return None
+            except Exception as e:
+                print(f"Error loading EXIF data (other): {e}")
+                return None
+        return None
     except (AttributeError, KeyError, IndexError) as e:
-        print(f"Error: {e}")
-    return None
+        print(f"Error accessing image info: {e}")
+        return None
 
 @app.route('/images/<path:filename>')
 def serve_image(filename):
@@ -240,13 +321,16 @@ def delete_images():
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Image similarity search using CLIP')
-    parser.add_argument('--photos', dest='image_dir', type=str, required=True, help='Directory containing images')
-    parser.add_argument('--port', type=int, default=5000, help='Port to run the server on')
+    parser.add_argument('--photos', dest='image_dir', type=str, 
+                       default=os.getenv('IMAGE_DIR'), 
+                       help='Directory containing images (default: from .env)')
+    parser.add_argument('--port', type=int, 
+                       default=int(os.getenv('PORT', 5000)),
+                       help='Port to run the server on (default: from .env)')
     args = parser.parse_args()
 
     app.config['IMAGE_DIR'] = os.path.abspath(args.image_dir)
+    os.makedirs(app.config['IMAGE_DIR'], exist_ok=True)
 
-    if not os.path.exists(app.config['IMAGE_DIR']):
-        os.makedirs(app.config['IMAGE_DIR'])
-
+    logging.basicConfig(level=logging.INFO)
     app.run(debug=True, port=args.port)
