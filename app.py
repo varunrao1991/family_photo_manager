@@ -9,13 +9,13 @@ import os
 import threading
 import queue
 import piexif
+import argparse
 
 app = Flask(__name__)
 
 MAX_PAGE_SIZE = 50
-IMAGE_DIR = '../images'
-DATABASE = 'image_features.db'
-CACHE_DIR = 'cache/'
+DATABASE = 'tmp/image_features.db'
+CACHE_DIR = 'tmp/cache/'
 
 # Ensure the cache directory exists
 if not os.path.exists(CACHE_DIR):
@@ -124,11 +124,13 @@ def similar_images():
     elif query_image:
         query_image = Image.open(query_image).convert('RGB')
         similarities = compute_similarity(None, query_image)
+    else:
+        return jsonify({'error': 'No query provided'}), 400
 
     start_index = (page - 1) * per_page
     end_index = start_index + per_page
     paged_similarities = similarities[start_index:end_index]
-    image_urls = [os.path.relpath(image[0], IMAGE_DIR).replace('\\', '/') for image in paged_similarities]
+    image_urls = [os.path.join(image[0]).replace('\\', '/') for image in paged_similarities]
     
     return jsonify({'similar_images': image_urls, 'total_count': len(similarities)})
 
@@ -137,9 +139,7 @@ def if_exif_exists_reset(img):
         exif_data = img.info.get('exif', None)
         if exif_data:
             exif_data = piexif.load(exif_data)
-            
             exif_data['0th'][piexif.ImageIFD.Orientation] = 1
-            
             return piexif.dump(exif_data)
     except (AttributeError, KeyError, IndexError) as e:
         print(f"Error: {e}")
@@ -147,7 +147,7 @@ def if_exif_exists_reset(img):
 
 @app.route('/images/<path:filename>')
 def serve_image(filename):
-    image_path = os.path.join(IMAGE_DIR, filename)
+    image_path = os.path.join(app.config['IMAGE_DIR'], filename)
     
     if os.path.isfile(image_path):
         with Image.open(image_path) as img:
@@ -168,16 +168,16 @@ def serve_image(filename):
 
 @app.route('/bigimages/<path:filename>')
 def serve_image_big(filename):
-    image_path = os.path.join(IMAGE_DIR, filename)
+    image_path = os.path.join(app.config['IMAGE_DIR'], filename)
     
     if os.path.isfile(image_path):
-        return send_from_directory(IMAGE_DIR, filename)
+        return send_from_directory(app.config['IMAGE_DIR'], filename)
     else:
         abort(404)
 
 def create_thumbnail(image_path, cache_path):
     with Image.open(image_path) as img:
-        img.thumbnail((200, 200))
+        img.thumbnail((400, 400))
         img.save(cache_path)
 
 @app.route('/rotate-images', methods=['POST'])
@@ -194,7 +194,7 @@ def rotate_images():
 
     def rotate_operations(c):
         for image_path in image_paths:
-            file_path = os.path.join(IMAGE_DIR, image_path)
+            file_path = os.path.join(app.config['IMAGE_DIR'], image_path)
             cache_path = os.path.join(CACHE_DIR, image_path)
             
             # Rotate the image
@@ -226,7 +226,7 @@ def delete_images():
 
     def delete_operation(c):
         for image_path in image_paths:
-            file_path = os.path.join(IMAGE_DIR, image_path).replace("\\","/")
+            file_path = os.path.join(app.config['IMAGE_DIR'], image_path).replace("\\","/")
             print(file_path)
             c.execute("DELETE FROM images WHERE filename = ?", (file_path,))
             if os.path.isfile(file_path):
@@ -239,4 +239,14 @@ def delete_images():
     return jsonify({'message': 'Selected images have been deleted.'})
 
 if __name__ == '__main__':
-    app.run()
+    parser = argparse.ArgumentParser(description='Image similarity search using CLIP')
+    parser.add_argument('--photos', dest='image_dir', type=str, required=True, help='Directory containing images')
+    parser.add_argument('--port', type=int, default=5000, help='Port to run the server on')
+    args = parser.parse_args()
+
+    app.config['IMAGE_DIR'] = os.path.abspath(args.image_dir)
+
+    if not os.path.exists(app.config['IMAGE_DIR']):
+        os.makedirs(app.config['IMAGE_DIR'])
+
+    app.run(debug=True, port=args.port)

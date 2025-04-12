@@ -2,7 +2,12 @@
 *.db
 *.db-journal
 
+# ignore temp
+temp_requirements.txt
+
 # Ignore the cache directory
 cache/
 data/
-myenv/
+venv/
+tmp/
+external/
