@@ -5,10 +5,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Visual Search | Photo Manager</title>
-
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6.0.0/css/all.min.css">
-
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
 </head>
 
@@ -29,29 +27,53 @@
         <div class="search-card">
             <h4 class="mb-4">Find similar photos</h4>
             <form id="searchForm">
-                <div class="mb-3">
-                    <label for="query_text" class="form-label">Search by text</label>
-                    <input type="text" class="form-control" id="query_text"
-                        placeholder="e.g. beach sunset, family gathering">
-                </div>
-                <div class="mb-3">
-                    <label class="form-label">Or search by image</label>
-                    <div class="file-input-container">
-                        <label for="query_image" class="file-input-label">
-                            <i class="fas fa-cloud-upload-alt fa-2x mb-2" style="color:#9ca3af"></i>
-                            <p class="mb-1">Drag & drop or click to browse</p>
-                            <p class="small text-muted">Supports JPG, PNG, WEBP</p>
-                        </label>
-                        <input type="file" id="query_image" class="file-input" accept="image/*">
-                        <img id="previewImage" class="preview-image">
+                <div class="row g-3">
+                    <div class="col-md-7">
+                        <div class="form-group">
+                            <label for="query_text" class="form-label">Search by text</label>
+                            <textarea class="form-control search-textarea" id="query_text" rows="2"
+                                placeholder="Describe what you're looking for...&#10;e.g. beach sunset, family gathering"></textarea>
+                        </div>
+                    </div>
+                    <div class="col-md-5">
+                        <div class="form-group">
+                            <label class="form-label">Search by image</label>
+                            <div class="image-upload-container">
+                                <div class="file-input-container">
+                                    <label for="query_image" class="file-input-label">
+                                        <i class="fas fa-cloud-upload-alt"></i>
+                                        <span class="upload-text">Click to upload</span>
+                                    </label>
+                                    <input type="file" id="query_image" class="file-input" accept="image/*">
+                                </div>
+                                <div class="preview-container">
+                                    <img id="previewImage" class="preview-image">
+                                    <button type="button" id="clearpreview" class="btn-close clear-preview"
+                                        aria-label="Clear"></button>
+                                </div>
+                            </div>
+                        </div>
                     </div>
                 </div>
-                <button type="submit" class="btn btn-primary w-100 py-2">
+
+                <!-- Weight Scrollbar -->
+                <div class="form-group mt-3">
+                    <label for="weightScrollbar" class="form-label">Adjust text vs image weight</label>
+                    <input type="range" class="form-range" id="weightScrollbar" min="0" max="100" value="50" step="1">
+                    <div class="d-flex justify-content-between">
+                        <small>Text</small>
+                        <small><span id="weightDisplay">50/50</span></small>
+                        <small>Image</small>
+                    </div>
+                </div>
+
+                <!-- Submit Button -->
+                <button type="submit" class="btn btn-primary w-100 mt-3 py-2" style="max-height: 48px;">
                     <i class="fas fa-search me-2"></i> Search
                 </button>
             </form>
         </div>
-        <div id="results" class="gallery"></div>
+        <div id="results" class="gallery mt-4"></div>
         <div class="loading" id="loading" style="display:none">
             <div class="spinner-border text-primary spinner" role="status">
                 <span class="visually-hidden">Loading...</span>
@@ -75,6 +97,7 @@
         </button>
     </div>
 
+    <!-- Modals -->
     <div class="modal fade" id="imageModal" tabindex="-1" aria-labelledby="imageModalLabel" aria-hidden="true">
         <div class="modal-dialog modal-dialog-centered modal-lg">
             <div class="modal-content">
@@ -82,7 +105,8 @@
                     <h5 class="modal-title" id="imageModalLabel">Image Preview</h5>
                     <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                 </div>
-                <div class="modal-body modal-fullscreen-viewport"> <img id="largeImage" src="" alt="Full Image">
+                <div class="modal-body modal-fullscreen-viewport">
+                    <img id="largeImage" src="" alt="Full Image">
                 </div>
                 <div class="modal-toolbar">
                     <button class="btn" id="zoomInModal"><i class="fas fa-search-plus"></i></button>
@@ -104,14 +128,7 @@
                 </div>
                 <div class="modal-body">
                     <p>Are you sure you want to delete <span id="delete-count">0</span> selected photos?</p>
-                    <div class="confirmation-thumbnails" id="confirmationThumbnails">
-                    </div>
-                    <div class="form-check mt-2">
-                        <input class="form-check-input" type="checkbox" id="confirmDeleteCheckbox">
-                        <label class="form-check-label" for="confirmDeleteCheckbox">
-                            I confirm I want to delete these photos permanently
-                        </label>
-                    </div>
+                    <div class="confirmation-thumbnails" id="confirmationThumbnails"></div>
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
@@ -150,7 +167,6 @@
     <div class="notification-container" id="notificationContainer"></div>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
-
     <script src="{{ url_for('static', filename='js/script.js') }}"></script>
 </body>
 
