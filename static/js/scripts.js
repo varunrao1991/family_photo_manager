@@ -25,7 +25,11 @@ let state = {
     pendingDeletion: new Set(), // Track images being deleted to prevent duplicate calls
 };
 
-const elements = {
+const elements = {    
+    duplicateForm: document.getElementById('duplicateForm'),        
+    resetPosition : document.getElementById('resetPosition'),
+    thresholdSlider: document.getElementById('threshold'),
+    thresholdDisplay: document.getElementById('thresholdDisplay'),
     searchForm: document.getElementById("searchForm"),
     weightSlider: document.getElementById("weightScrollbar"),
     weightDisplay: document.getElementById("weightDisplay"),
@@ -85,12 +89,22 @@ function initializeModals() {
 // Event Listeners
 function setupEventListeners() {
     // Image manipulation
-    document.getElementById('resetPosition')?.addEventListener('click', resetImagePosition);
+    elements.resetPosition?.addEventListener('click', resetImagePosition);
     elements.zoomInModal?.addEventListener('click', zoomInImage);
     elements.zoomOutModal?.addEventListener('click', zoomOutImage);
     elements.rotateLeftModal?.addEventListener('click', () => rotateImage("left"));
     elements.rotateRightModal?.addEventListener('click', () => rotateImage("right"));
     elements.downloadImage?.addEventListener('click', downloadImage);
+
+    elements.thresholdSlider.addEventListener('input', function() {
+        elements.thresholdDisplay.textContent = this.value + '%';
+    });
+
+    elements.duplicateForm.addEventListener('submit', function(e) {
+        e.preventDefault();
+        const threshold = parseFloat(elements.thresholdSlider.value) / 100;
+        findDuplicates(threshold);
+    });
 
     // Search and selection
     elements.searchForm?.addEventListener('submit', handleSearchSubmit);
@@ -250,6 +264,149 @@ async function handleSearchSubmit(e) {
     await performSearch(formData);
 }
 
+
+
+function findDuplicates(threshold) {
+    document.getElementById('loading').style.display = 'block';
+    document.getElementById('duplicateResults').innerHTML = '';
+
+    fetch('/find-duplicates', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/x-www-form-urlencoded',
+        },
+        body: `threshold=${threshold}`
+    })
+    .then(response => response.json())
+    .then(data => {
+        displayDuplicateResults(data.duplicate_groups);
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        showNotification('Error finding duplicates', 'danger');
+    })
+    .finally(() => {
+        document.getElementById('loading').style.display = 'none';
+    });
+}
+
+function displayDuplicateResults(groups) {
+    const container = document.getElementById('duplicateResults');
+    
+    if (groups.length === 0) {
+        container.innerHTML = '<div class="alert alert-info">No duplicate groups found</div>';
+        return;
+    }
+
+    groups.forEach((group, index) => {
+        const groupElement = document.createElement('div');
+        groupElement.className = 'duplicate-group';
+        groupElement.dataset.groupId = `group-${index}`;
+        
+        const header = document.createElement('div');
+        header.className = 'duplicate-group-header d-flex justify-content-between align-items-center';
+        
+        const headerText = document.createElement('span');
+        headerText.textContent = `Group ${index + 1} (${group.length} images)`;
+        
+        const deleteGroupBtn = document.createElement('button');
+        deleteGroupBtn.className = 'btn btn-sm btn-outline-danger';
+        deleteGroupBtn.innerHTML = '<i class="fas fa-trash me-1"></i> Delete Group';
+        deleteGroupBtn.onclick = () => showGroupDeleteConfirmation(group, `Group ${index + 1}`);
+        
+        header.appendChild(headerText);
+        header.appendChild(deleteGroupBtn);
+        
+        const body = document.createElement('div');
+        body.className = 'duplicate-group-body row g-2';
+        
+        group.forEach(imagePath => {
+            const col = document.createElement('div');
+            col.className = 'col-6 col-md-4 col-lg-3 col-xl-2';
+            const card = createImageCard(imagePath);
+            col.appendChild(card);
+            body.appendChild(col);
+        });
+        
+        groupElement.appendChild(header);
+        groupElement.appendChild(body);
+        container.appendChild(groupElement);
+    });
+}
+
+function showGroupDeleteConfirmation(groupImages, groupName) {
+    if (!elements.deleteConfirmationModalElement) return;
+
+    // Clear any pending deletions and add the entire group
+    state.pendingDeletion.clear();
+    groupImages.forEach(img => state.pendingDeletion.add(img));
+
+    // Update UI for group delete
+    elements.deleteCount.textContent = groupImages.length;
+    elements.confirmationThumbnails.innerHTML = '';
+
+    // Create group header
+    const groupHeader = document.createElement('div');
+    groupHeader.className = 'group-header mb-2';
+    groupHeader.innerHTML = `<strong>${groupName}</strong> (${groupImages.length} images)`;
+    elements.confirmationThumbnails.appendChild(groupHeader);
+
+    // Add thumbnails with checkboxes
+    groupImages.forEach((imagePath) => {
+        const fileName = imagePath.split("/").pop();
+        const thumbnailItem = document.createElement("div");
+        thumbnailItem.className = "thumbnail-item selected";
+        thumbnailItem.dataset.imagePath = imagePath;
+
+        const img = document.createElement("img");
+        img.className = "thumbnail-img";
+        img.src = `/images/${imagePath}?t=${Date.now()}`;
+        img.alt = fileName;
+
+        const checkbox = document.createElement("input");
+        checkbox.type = "checkbox";
+        checkbox.className = "thumbnail-checkbox";
+        checkbox.checked = true;
+        const checkboxId = `thumb-check-${imagePath.replace(/[^a-z0-9]/gi, "-")}`;
+        checkbox.id = checkboxId;
+
+        const label = document.createElement("label");
+        label.className = "checkbox-label";
+        label.htmlFor = checkboxId;
+
+        checkbox.addEventListener("change", (e) => {
+            thumbnailItem.classList.toggle("selected", e.target.checked);
+            if (!e.target.checked) {
+                state.pendingDeletion.delete(imagePath);
+            } else {
+                state.pendingDeletion.add(imagePath);
+            }
+            elements.deleteCount.textContent = state.pendingDeletion.size;
+        });
+
+        thumbnailItem.appendChild(img);
+        thumbnailItem.appendChild(checkbox);
+        thumbnailItem.appendChild(label);
+        elements.confirmationThumbnails.appendChild(thumbnailItem);
+    });
+
+    // Update modal content
+    const modalBody = elements.deleteConfirmationModalElement.querySelector('.modal-body');
+    if (modalBody) {
+        modalBody.innerHTML = '<p>Are you sure you want to delete this group of images?</p>';
+        modalBody.appendChild(elements.confirmationThumbnails);
+    }
+
+    // Show select all checkbox
+    const confirmCheckboxContainer = elements.deleteConfirmationModalElement.querySelector('.confirm-checkbox-container');
+    if (confirmCheckboxContainer) {
+        confirmCheckboxContainer.style.display = 'block';
+    }
+
+    elements.confirmDeleteBtn.disabled = false;
+    elements.deleteConfirmationModal?.show();
+}
+
 function resetSearchState() {
     state.currentPage = 1;
     state.hasMore = true;
@@ -268,8 +425,8 @@ async function performSearch(formData) {
         if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
 
         const data = await response.json();
-        displayResults(data.similar_images || []);
-        state.hasMore = data.similar_images ? data.similar_images.length === config.perPage : false;
+        displayResults(data.results || (data.similar_images || []).map((path) => ({ type: "image", path })));
+        state.hasMore = (data.page || 1) * (data.per_page || config.perPage) < (data.total_count || 0);
     } catch (error) {
         console.error("Search error:", error);
         showNotification(`Search failed: ${error.message}`, "error");
@@ -295,9 +452,10 @@ async function loadMoreResults() {
         if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
 
         const data = await response.json();
-        if (data.similar_images && data.similar_images.length > 0) {
-            displayResults(data.similar_images, true);
-            state.hasMore = data.similar_images.length === config.perPage;
+        const results = data.results || (data.similar_images || []).map((path) => ({ type: "image", path }));
+        if (results.length > 0) {
+            displayResults(results, true);
+            state.hasMore = (data.page || state.currentPage) * (data.per_page || config.perPage) < (data.total_count || 0);
         } else {
             state.hasMore = false;
         }
@@ -320,7 +478,7 @@ function displayResults(images, append = false) {
     }
 
     images.forEach((imagePath) => {
-        createImageCard(imagePath);
+        elements.results.appendChild(createImageCard(imagePath));
     });
 }
 
@@ -344,7 +502,10 @@ function handleEmptyResults(append) {
     }
 }
 
-function createImageCard(imagePath) {
+function createImageCard(item) {
+    if (typeof item === "string") item = { type: "image", path: item };
+    const imagePath = item.path;
+    const isVideo = item.type === "video";
     const fileName = imagePath.split("/").pop();
     const card = document.createElement("div");
     card.className = "photo-card";
@@ -356,9 +517,17 @@ function createImageCard(imagePath) {
 
     const img = document.createElement("img");
     img.className = "photo-img";
-    img.src = `/images/${imagePath}?t=${Date.now()}`;
+    img.src = isVideo ? item.poster_url : `/images/${imagePath}?t=${Date.now()}`;
     img.loading = "lazy";
-    img.alt = fileName;
+    img.alt = `${isVideo ? "Video" : "Photo"}: ${fileName}`;
+
+    if (isVideo) {
+        const play = document.createElement("span");
+        play.className = "video-play-icon";
+        play.textContent = "▶";
+        play.setAttribute("aria-hidden", "true");
+        card.appendChild(play);
+    }
 
     const overlay = document.createElement("div");
     overlay.className = "photo-overlay";
@@ -369,11 +538,13 @@ function createImageCard(imagePath) {
 
     // Action buttons
     const buttons = [
-        { icon: "fa-undo", title: "Rotate Left", action: () => rotateSingleImage(imagePath, "left") },
-        { icon: "fa-redo", title: "Rotate Right", action: () => rotateSingleImage(imagePath, "right") },
         { icon: "fa-link", title: "Copy Path", action: () => copyImagePathToClipboard(imagePath) },
-        { icon: "fa-trash", title: "Delete", action: () => showSingleDeleteConfirmation(imagePath) },
-        { icon: "fa-download", title: "Download", action: () => downloadSingleImage(imagePath) }
+        ...(!isVideo ? [
+            { icon: "fa-undo", title: "Rotate Left", action: () => rotateSingleImage(imagePath, "left") },
+            { icon: "fa-redo", title: "Rotate Right", action: () => rotateSingleImage(imagePath, "right") },
+            { icon: "fa-trash", title: "Delete", action: () => showSingleDeleteConfirmation(imagePath) }
+        ] : []),
+        { icon: "fa-download", title: "Download", action: () => downloadSingleImage(imagePath, isVideo) }
     ];
 
     buttons.forEach(btn => {
@@ -392,13 +563,14 @@ function createImageCard(imagePath) {
     card.addEventListener("dblclick", (e) => {
         e.preventDefault();
         e.stopPropagation();
-        openImageModal(imagePath, fileName);
+        if (isVideo) openVideoModal(item);
+        else openImageModal(imagePath, fileName);
     });
 
     card.appendChild(img);
     card.appendChild(overlay);
     card.appendChild(actions);
-    elements.results.appendChild(card);
+    return card;
 }
 
 // Image Selection and Actions
@@ -666,16 +838,68 @@ function showDeleteConfirmation() {
 function handleConfirmedDelete() {
     if (state.pendingDeletion.size === 0) return;
 
-    if (state.pendingDeletion.size === 1) {
-        // Single image deletion
-        const [imagePath] = state.pendingDeletion.values();
-        deleteSingleImage(imagePath);
-    } else {
-        // Multiple images deletion
-        deleteSelectedImages();
-    }
+    const imagesToDelete = Array.from(state.pendingDeletion);
+    
+    // Show loading notification
+    const notification = showNotification(
+        `Deleting ${imagesToDelete.length} images...`,
+        "info",
+        0
+    );
 
-    elements.deleteConfirmationModal?.hide();
+    fetch("/delete-images", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ images: imagesToDelete }),
+    })
+    .then(response => response.json())
+    .then(result => {
+        if (result.success) {
+            // Remove from UI
+            imagesToDelete.forEach(imagePath => {
+                removeImageFromUI(imagePath);
+                // Also remove from any duplicate groups
+                removeImageFromDuplicateGroups(imagePath);
+            });
+
+            updateNotification(notification, "success", result.message);
+        } else {
+            throw new Error(result.error || "Deletion failed");
+        }
+    })
+    .catch(error => {
+        console.error("Delete error:", error);
+        updateNotification(notification, "error", "Deletion failed");
+    })
+    .finally(() => {
+        state.pendingDeletion.clear();
+        state.selectedImages.clear();
+        updateActionBar();
+        elements.deleteConfirmationModal?.hide();
+    });
+}
+
+function removeImageFromDuplicateGroups(imagePath) {
+    // Find and remove the image from any duplicate group display
+    document.querySelectorAll('.duplicate-group-body .image-card').forEach(card => {
+        if (card.dataset.imagePath === imagePath) {
+            card.remove();
+        }
+    });
+
+    // Update group headers
+    document.querySelectorAll('.duplicate-group').forEach(group => {
+        const groupBody = group.querySelector('.duplicate-group-body');
+        const remainingImages = groupBody.querySelectorAll('.image-card').length;
+        const header = group.querySelector('.duplicate-group-header span');
+        
+        if (remainingImages > 0) {
+            header.textContent = header.textContent.replace(/\(\d+ images\)/, `(${remainingImages} images)`);
+        } else {
+            // Remove empty group
+            group.remove();
+        }
+    });
 }
 
 async function deleteSingleImage(imagePath) {
@@ -791,24 +1015,62 @@ function copyImagePathToClipboard(imagePath) {
 
 function openImageModal(imagePath, fileName) {
     resetModalState();
-    state.currentImage = { path: imagePath, name: fileName };
+    state.currentImage = { path: imagePath, name: fileName, type: "image" };
+    const player = document.getElementById("largeVideo");
+    if (player) {
+        player.pause();
+        player.removeAttribute("src");
+        player.hidden = true;
+    }
+    elements.largeImage.hidden = false;
     elements.largeImage.src = `/bigimages/${imagePath}?t=${Date.now()}`;
     elements.imageModal.show();
 }
 
 function downloadImage() {
     if (!state.currentImage) return;
-    downloadSingleImage(state.currentImage.path);
+    downloadSingleImage(state.currentImage.path, state.currentImage.type === "video");
 }
 
-function downloadSingleImage(imagePath) {
+function downloadSingleImage(imagePath, isVideo = false) {
     const link = document.createElement("a");
-    link.href = `/bigimages/${imagePath}?t=${Date.now()}`;
+    link.href = `${isVideo ? "/videos" : "/bigimages"}/${imagePath.split("/").map(encodeURIComponent).join("/")}?t=${Date.now()}`;
     link.download = imagePath.split("/").pop() || "image";
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
 }
+
+function openVideoModal(item) {
+    resetModalState();
+    state.currentImage = { path: item.path, name: item.name || item.path.split("/").pop(), type: "video" };
+    elements.largeImage.removeAttribute("src");
+    elements.largeImage.hidden = true;
+    let player = document.getElementById("largeVideo");
+    if (!player) {
+        player = document.createElement("video");
+        player.id = "largeVideo";
+        player.controls = true;
+        player.playsInline = true;
+        player.className = "large-video-preview";
+        elements.largeImage.parentElement.appendChild(player);
+    }
+    player.hidden = false;
+    player.src = item.video_url;
+    player.load();
+    const playback = player.play();
+    if (playback && playback.catch) playback.catch(() => {});
+    elements.imageModal.show();
+}
+
+document.getElementById("imageModal")?.addEventListener("hidden.bs.modal", () => {
+    const player = document.getElementById("largeVideo");
+    if (!player) return;
+    player.pause();
+    player.removeAttribute("src");
+    player.hidden = true;
+    elements.largeImage.hidden = false;
+});
 
 function handleFileSelect(e) {
     const file = e.target.files[0];

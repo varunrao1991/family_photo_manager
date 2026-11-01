@@ -11,3 +11,11 @@ data/
 venv/
 tmp/
 external/
+
+# Python cache
+__pycache__/
+*.py[cod]
+
+# Tizen build artifacts and packages
+.buildResult/
+*.wgt

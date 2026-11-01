@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Family Photo TV</title>
+    <link rel="stylesheet" href="css/style.css" />
+    <script src="main.js" defer></script>
+</head>
+<body>
+    <main id="app">
+        <div class="search-header">
+            <header class="topbar">
+                <div class="brand-lockup">
+                    <img src="icon.png" alt="" class="brand-logo" />
+                    <div><span class="eyebrow">FAMILY MEMORIES</span><h1>Find a memory</h1></div>
+                </div>
+            </header>
+            <form id="searchForm" class="searchbar">
+                <input id="query" type="text" placeholder="Try: beach at sunset, birthday, family picnic…" autocomplete="off" />
+                <button id="voiceButton" type="button" aria-label="Search by voice">🎙 Voice</button>
+                <button class="searchButton" type="submit">Search</button>
+            </form>
+            <div class="hint">Select Voice here to speak a search. The remote microphone key opens Samsung’s system search. Use the arrows to browse photos.</div>
+            <div id="status" class="status" role="status">Connecting to your laptop at 192.168.1.4…</div>
+        </div>
+        <section id="results" class="results" aria-label="Search results"></section>
+        <button id="scrollToTop" class="floating-top" type="button" aria-label="Back to top" hidden>↑ Back to top</button>
+    </main>
+    <section id="viewer" class="viewer hidden" aria-label="Photo viewer">
+        <div id="viewerFeed" class="viewer-feed">
+            <div id="viewerHero" class="viewer-hero">
+                <div id="viewerDetails" class="viewer-details viewer-chrome">
+                    <div id="photoName" class="photo-name"></div>
+                    <div id="photoDescription" class="photo-description"></div>
+                </div>
+                <button id="closeViewer" class="close viewer-chrome" aria-label="Close photo">✕</button>
+                <button id="previousPhoto" class="nav previous viewer-chrome" aria-label="Previous photo">‹</button>
+                <img id="largePhoto" alt="Selected photo" tabindex="0" />
+                <video id="largeVideo" playsinline preload="metadata" hidden tabindex="0"></video>
+                <button id="nextPhoto" class="nav next viewer-chrome" aria-label="Next photo">›</button>
+                <div id="videoFeedbackHud" class="video-feedback-hud" hidden>▶</div>
+                <div id="videoControls" class="video-controls viewer-chrome" hidden>
+                    <button id="videoPlayPause" class="video-btn play-pause-btn" type="button" aria-label="Play or Pause">❚❚</button>
+                    <button id="videoRewind" class="video-btn seek-btn" type="button" aria-label="Rewind 10 seconds">↺ 10s</button>
+                    <span id="videoCurrentTime" class="video-time">0:00</span>
+                    <div class="video-progress-wrapper">
+                        <input id="videoProgressBar" class="video-progress" type="range" min="0" max="100" value="0" step="0.1" aria-label="Seek video progress" />
+                    </div>
+                    <span id="videoDuration" class="video-time">0:00</span>
+                    <button id="videoForward" class="video-btn seek-btn" type="button" aria-label="Forward 10 seconds">10s ↻</button>
+                </div>
+                <div id="photoCaption" class="caption viewer-chrome"></div>
+                <div class="viewerHelp viewer-chrome">← Previous　　Next →　　Down: similar photos　　Back: close</div>
+            </div>
+            <section id="relatedSection" class="related-section" aria-label="Similar photos">
+                <div class="related-toolbar">
+                    <div class="related-heading">
+                        <h2>Similar moments</h2>
+                        <div id="relatedQueryText" class="related-query"></div>
+                    </div>
+                    <label class="mix-control" for="similarityMix">
+                        <span>Text ↔ Photo</span>
+                        <input id="similarityMix" type="range" min="0" max="100" value="50" />
+                        <output id="similarityMixLabel" for="similarityMix">Text 50% · Photo 50%</output>
+                    </label>
+                </div>
+                <div id="relatedStatus" class="related-status" role="status">Preparing similar photos…</div>
+                <div id="relatedResults" class="related-grid" aria-label="Similar photo results"></div>
+            </section>
+        </div>
+    </section>
+</body>
+</html>
