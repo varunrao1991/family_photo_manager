@@ -201,7 +201,14 @@ install_deps() {
 import_phone_media() {
     echo -e "${YELLOW}Checking for connected phone...${NC}"
     if [ "$IS_WINDOWS" = true ]; then
-        powershell.exe -NoProfile -ExecutionPolicy Bypass -File "tools/complete_phone_media_adb.ps1" -Destination "$PHOTO_DIR/PhoneImport" || true
+        powershell.exe -NoProfile -ExecutionPolicy Bypass -File "tools/sync_phone_media.ps1" -Destination "$PHOTO_DIR/PhoneImport" || true
+    fi
+}
+
+import_phone_media() {
+    echo -e "${YELLOW}Checking for connected phone...${NC}"
+    if [ "$IS_WINDOWS" = true ]; then
+        powershell.exe -NoProfile -ExecutionPolicy Bypass -File "tools/sync_phone_media.ps1" -Destination "$PHOTO_DIR/PhoneImport" || true
     fi
 }
 
