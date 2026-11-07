@@ -5,12 +5,20 @@ GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 NC='\033[0m'
 
-PHOTO_DIR=""
+PHOTO_DIR="D:/images"
 VENV_DIR="venv"
 PORT=5000
 FORCE_REINSTALL=false
 PYTHON_COMMAND=""
 IS_WINDOWS=false
+
+# Load .env if present to get defaults
+if [ -f ".env" ]; then
+    ENV_PHOTO=$(grep -E '^IMAGE_DIR=' .env | cut -d '=' -f2- | tr -d '"\r')
+    ENV_PORT=$(grep -E '^PORT=' .env | cut -d '=' -f2- | tr -d '"\r')
+    [ -n "$ENV_PHOTO" ] && PHOTO_DIR="$ENV_PHOTO"
+    [ -n "$ENV_PORT" ] && PORT="$ENV_PORT"
+fi
 
 # Detect Windows
 if [[ "$OSTYPE" == "msys" || "$OSTYPE" == "win32" || "$OS" == "Windows_NT" ]]; then
@@ -22,7 +30,7 @@ show_help() {
     echo "  ./setup.sh [options]"
     echo ""
     echo -e "${YELLOW}Options:${NC}"
-    echo "  --photos <dir>    Set photo directory (required)"
+    echo "  --photos <dir>    Set photo directory (default: D:/images or from .env)"
     echo "  --venv <dir>      Set virtual environment directory (default: venv)"
     echo "  --port <number>   Set application port (default: 5000)"
     echo "  --python <path>   Specify full path to Python executable"
@@ -44,8 +52,7 @@ while [[ $# -gt 0 ]]; do
 done
 
 if [ -z "$PHOTO_DIR" ]; then
-    echo -e "${RED}Error: --photos <dir> is required${NC}"
-    show_help
+    PHOTO_DIR="D:/images"
 fi
 
 check_python() {

@@ -375,7 +375,7 @@ def create_database(folder_path):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description="Create CLIP image feature database.")
-    parser.add_argument('--photos', required=True, type=str, help='Directory containing images')
+    parser.add_argument('--photos', type=str, default=os.getenv('IMAGE_DIR', 'D:/images'), help='Directory containing images (default: from .env or D:/images)')
     args = parser.parse_args()
 
     folder_path = os.path.abspath(args.photos)

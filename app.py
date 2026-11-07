@@ -1078,19 +1078,17 @@ def create_app(image_dir: str) -> Flask:
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Image similarity search using CLIP')
     parser.add_argument('--photos', dest='image_dir', type=str, 
-                       default=os.getenv('IMAGE_DIR'), 
-                       help='Directory containing images (default: from .env)')
+                       default=os.getenv('IMAGE_DIR', 'D:/images'), 
+                       help='Directory containing images (default: from .env or D:/images)')
     parser.add_argument('--port', type=int, 
                        default=int(os.getenv('PORT', 5000)),
-                       help='Port to run the server on (default: from .env)')
+                       help='Port to run the server on (default: from .env or 5000)')
     args = parser.parse_args()
 
-    if not args.image_dir:
-        logger.error("No image directory specified. Use --photos or set IMAGE_DIR in .env")
-        exit(1)
+    image_dir = args.image_dir or os.getenv('IMAGE_DIR', 'D:/images')
 
     service = ImageSearchService()
-    service.app.config['IMAGE_DIR'] = os.path.abspath(args.image_dir)
+    service.app.config['IMAGE_DIR'] = os.path.abspath(image_dir)
     os.makedirs(service.app.config['IMAGE_DIR'], exist_ok=True)
 
     try:
