@@ -33,7 +33,18 @@ button:hover, button:focus, input:focus { outline: 5px solid #78a5ff; outline-of
 .viewer.hidden { display: none; }
 .viewer-feed { width: 100%; height: 100%; overflow-x: hidden; overflow-y: auto; scroll-behavior: smooth; }
 .viewer-hero { position: relative; display: flex; align-items: center; justify-content: center; width: 100%; height: 100vh; overflow: hidden; background: #03050a; }
-.viewer-hero img { display: block; width: 100vw; height: 100vh; max-width: 100%; max-height: 100%; object-fit: contain; }
+.viewer-hero img {
+    display: block;
+    width: 100vw;
+    height: 100vh;
+    max-width: 100%;
+    max-height: 100%;
+    object-fit: contain;
+    outline: none;
+    transform-origin: center center;
+    transition: transform 0.18s cubic-bezier(0.2, 0, 0.2, 1);
+    will-change: transform;
+}
 .viewer-hero video { display: block; width: 100vw; height: 100vh; max-width: 100%; max-height: 100%; object-fit: contain; background: #03050a; outline: none; }
 .viewer-hero video[hidden], .viewer-hero img[hidden] { display: none; }
 .viewer-chrome { opacity: 1; visibility: visible; transition: opacity .35s ease, visibility .35s ease; }
@@ -55,9 +66,9 @@ button:hover, button:focus, input:focus { outline: 5px solid #78a5ff; outline-of
     left: 50%;
     transform: translate(-50%, -50%);
     z-index: 10;
-    min-width: 100px;
+    min-width: 110px;
     height: 100px;
-    padding: 0 24px;
+    padding: 0 28px;
     display: flex;
     align-items: center;
     justify-content: center;
@@ -65,11 +76,12 @@ button:hover, button:focus, input:focus { outline: 5px solid #78a5ff; outline-of
     border: 3px solid #78a5ff;
     border-radius: 50px;
     color: #fff;
-    font-size: 40px;
+    font-size: 34px;
     font-weight: bold;
     pointer-events: none;
     box-shadow: 0 8px 32px rgba(0,0,0,0.7);
     opacity: 0;
+    white-space: nowrap;
     transition: opacity 0.2s ease, transform 0.2s ease;
 }
 .video-feedback-hud.hud-pulse {

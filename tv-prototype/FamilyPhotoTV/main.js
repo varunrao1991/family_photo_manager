@@ -61,13 +61,21 @@
     let hudHideTimer = null;
     let viewerControlsTimer = null;
 
+    let photoZoom = 1.0;
+    let panX = 0;
+    let panY = 0;
+    const ZOOM_STEP = 0.5;
+    const MIN_ZOOM = 1.0;
+    const MAX_ZOOM = 4.0;
+    const PAN_STEP = 120;
+
     const clientId = getClientId('familyPhotoClientId');
     const relatedClientId = getClientId('familyPhotoRelatedClientId');
 
-    // Register Tizen TV Remote multimedia keys if available
+    // Register Tizen TV Remote multimedia and volume keys if available
     try {
         if (window.tizen && window.tizen.tvinputdevice) {
-            ['MediaPlay', 'MediaPause', 'MediaPlayPause', 'MediaFastForward', 'MediaRewind', 'MediaStop'].forEach((k) => {
+            ['MediaPlay', 'MediaPause', 'MediaPlayPause', 'MediaFastForward', 'MediaRewind', 'MediaStop', 'VolumeUp', 'VolumeDown'].forEach((k) => {
                 try { window.tizen.tvinputdevice.registerKey(k); } catch (_) {}
             });
         }
@@ -547,6 +555,7 @@
         if (relatedController) relatedController.abort();
         relatedToken += 1;
         relatedLoading = false;
+        resetPhotoZoom();
         viewer.classList.remove('related-mode');
         viewerHero.scrollIntoView({ behavior: 'smooth' });
         if (wasRelated) {
@@ -579,6 +588,69 @@
         window.setTimeout(() => results.querySelector('.photo')?.focus(), 0);
     }
 
+    // Photo Zoom & Pan Functions
+    function applyPhotoTransform() {
+        if (!largePhoto) return;
+        if (photoZoom <= 1.0) {
+            largePhoto.style.transform = '';
+        } else {
+            largePhoto.style.transform = `translate(${panX}px, ${panY}px) scale(${photoZoom})`;
+        }
+    }
+
+    function resetPhotoZoom() {
+        photoZoom = 1.0;
+        panX = 0;
+        panY = 0;
+        if (largePhoto) {
+            largePhoto.style.transform = '';
+        }
+        updateViewerHelp();
+    }
+
+    function zoomPhoto(direction) {
+        if (direction > 0) {
+            photoZoom = Math.min(MAX_ZOOM, photoZoom + ZOOM_STEP);
+        } else {
+            photoZoom = Math.max(MIN_ZOOM, photoZoom - ZOOM_STEP);
+        }
+        photoZoom = Math.round(photoZoom * 10) / 10;
+        if (photoZoom <= 1.0) {
+            panX = 0;
+            panY = 0;
+        } else {
+            const maxPanX = Math.max(0, ((photoZoom - 1) * window.innerWidth) / 2);
+            const maxPanY = Math.max(0, ((photoZoom - 1) * window.innerHeight) / 2);
+            panX = Math.max(-maxPanX, Math.min(maxPanX, panX));
+            panY = Math.max(-maxPanY, Math.min(maxPanY, panY));
+        }
+        applyPhotoTransform();
+        showHud(photoZoom <= 1.0 ? '1.0x (Fit)' : `${photoZoom.toFixed(1)}x`);
+        updateViewerHelp();
+        revealViewerControls();
+    }
+
+    function panPhoto(dx, dy) {
+        if (photoZoom <= 1.0) return;
+        const maxPanX = Math.max(0, ((photoZoom - 1) * window.innerWidth) / 2);
+        const maxPanY = Math.max(0, ((photoZoom - 1) * window.innerHeight) / 2);
+        panX = Math.max(-maxPanX, Math.min(maxPanX, panX + dx));
+        panY = Math.max(-maxPanY, Math.min(maxPanY, panY + dy));
+        applyPhotoTransform();
+        revealViewerControls();
+    }
+
+    function updateViewerHelp() {
+        if (!viewerHelp) return;
+        if (!largeVideo.hidden) {
+            viewerHelp.textContent = 'Center: Play/Pause　　Vol +/- or Left/Right: Seek 10s　　Down: Similar moments　　Back: Close';
+        } else if (photoZoom > 1.0) {
+            viewerHelp.textContent = `Vol +/-: Zoom (${photoZoom.toFixed(1)}x)　　Arrows: Pan　　Center: Reset 1x　　Back: Close`;
+        } else {
+            viewerHelp.textContent = '← Previous　　Next →　　Vol +/-: Zoom　　Down: Similar moments　　Back: Close';
+        }
+    }
+
     // Video Player & HUD Functions
     function toggleVideoPlayPause() {
         if (largeVideo.hidden) return;
@@ -587,16 +659,16 @@
             if (playPromise && playPromise.then) {
                 playPromise.then(() => {
                     updatePlayPauseButton(true);
-                    showVideoHud('▶');
+                    showHud('▶');
                 }).catch(() => {});
             } else {
                 updatePlayPauseButton(true);
-                showVideoHud('▶');
+                showHud('▶');
             }
         } else {
             largeVideo.pause();
             updatePlayPauseButton(false);
-            showVideoHud('❚❚');
+            showHud('❚❚');
         }
         revealViewerControls();
     }
@@ -607,7 +679,7 @@
         videoPlayPause.setAttribute('aria-label', isPlaying ? 'Pause video' : 'Play video');
     }
 
-    function showVideoHud(text) {
+    function showHud(text) {
         if (!videoFeedbackHud) return;
         videoFeedbackHud.textContent = text;
         videoFeedbackHud.hidden = false;
@@ -619,13 +691,14 @@
             videoFeedbackHud.hidden = true;
         }, 850);
     }
+    const showVideoHud = showHud;
 
     function seekVideoRelative(seconds) {
         if (largeVideo.hidden || !largeVideo.duration) return;
         const target = Math.max(0, Math.min(largeVideo.duration, (largeVideo.currentTime || 0) + seconds));
         largeVideo.currentTime = target;
         updateVideoProgressDisplay();
-        showVideoHud(seconds > 0 ? `+${seconds}s` : `${seconds}s`);
+        showHud(seconds > 0 ? `+${seconds}s` : `${seconds}s`);
         revealViewerControls();
     }
 
@@ -665,13 +738,14 @@
             ? { type: 'image', path: photos[selectedIndex] } : photos[selectedIndex];
         const path = item.path;
         const name = item.name || path.split('/').pop();
+        resetPhotoZoom();
 
         if (item.type === 'video') {
             largePhoto.hidden = true;
             largePhoto.removeAttribute('src');
             largeVideo.hidden = false;
             videoControls.hidden = false;
-            viewerHelp.textContent = 'Center: Play/Pause　　Left/Right: Seek 10s　　Down: Similar moments　　Back: Close';
+            updateViewerHelp();
 
             largeVideo.src = `${baseUrl()}${item.video_url}`;
             largeVideo.load();
@@ -693,7 +767,7 @@
             largeVideo.load();
             largeVideo.hidden = true;
             videoControls.hidden = true;
-            viewerHelp.textContent = '← Previous　　Next →　　Down: Similar moments　　Back: Close';
+            updateViewerHelp();
 
             largePhoto.hidden = false;
             largePhoto.removeAttribute('src');
@@ -728,6 +802,7 @@
     function closeViewer() {
         if (viewerControlsTimer) window.clearTimeout(viewerControlsTimer);
         exitRelatedMode();
+        resetPhotoZoom();
         largeVideo.pause();
         largeVideo.removeAttribute('src');
         largeVideo.load();
@@ -750,6 +825,7 @@
     function movePhoto(delta) {
         if (viewer.classList.contains('hidden') || !photos.length) return;
         if (viewer.classList.contains('related-mode')) exitRelatedMode();
+        resetPhotoZoom();
         selectedIndex = (selectedIndex + delta + photos.length) % photos.length;
         showCurrentPhoto();
         if (hasMore && selectedIndex >= photos.length - 8) {
@@ -853,7 +929,9 @@
             37: 'ArrowLeft', 38: 'ArrowUp', 39: 'ArrowRight', 40: 'ArrowDown',
             13: 'Enter', 10009: 'BrowserBack', 27: 'Escape', 8: 'Backspace',
             415: 'MediaPlay', 19: 'MediaPause', 10252: 'MediaPlayPause',
-            417: 'MediaFastForward', 412: 'MediaRewind', 413: 'MediaStop'
+            417: 'MediaFastForward', 412: 'MediaRewind', 413: 'MediaStop',
+            447: 'VolumeUp', 175: 'VolumeUp',
+            448: 'VolumeDown', 174: 'VolumeDown'
         };
         const key = keyMap[event.keyCode] || event.key;
         const inViewer = !viewer.classList.contains('hidden');
@@ -861,12 +939,40 @@
         const editingText = document.activeElement instanceof HTMLInputElement && document.activeElement.type === 'text';
         const active = document.activeElement;
 
+        const isVolUp = key === 'VolumeUp' || event.keyCode === 447 || event.keyCode === 175 || (!editingText && (event.key === '+' || event.key === '='));
+        const isVolDown = key === 'VolumeDown' || event.keyCode === 448 || event.keyCode === 174 || (!editingText && (event.key === '-' || event.key === '_'));
+
         if (inViewer) revealViewerControls();
+
+        // Volume keys: Zoom in/out for image, Seek forward/back for video
+        if (isVolUp || isVolDown) {
+            if (!inViewer) {
+                // Outside viewer: preserve standard TV audio volume control
+                try {
+                    if (window.tizen && window.tizen.tvaudiocontrol) {
+                        if (isVolUp) window.tizen.tvaudiocontrol.setVolumeUp();
+                        else window.tizen.tvaudiocontrol.setVolumeDown();
+                    }
+                } catch (_) {}
+                return;
+            }
+            event.preventDefault();
+            if (viewer.classList.contains('related-mode')) {
+                exitRelatedMode();
+                focusMainPhoto();
+            }
+            if (isVideoActive) {
+                seekVideoRelative(isVolUp ? 10 : -10);
+            } else {
+                zoomPhoto(isVolUp ? 1 : -1);
+            }
+            return;
+        }
 
         // Hardware Media Keys
         if (isVideoActive) {
-            if (key === 'MediaPlay') { event.preventDefault(); largeVideo.play(); showVideoHud('▶'); return; }
-            if (key === 'MediaPause') { event.preventDefault(); largeVideo.pause(); showVideoHud('❚❚'); return; }
+            if (key === 'MediaPlay') { event.preventDefault(); largeVideo.play(); showHud('▶'); return; }
+            if (key === 'MediaPause') { event.preventDefault(); largeVideo.pause(); showHud('❚❚'); return; }
             if (key === 'MediaPlayPause') { event.preventDefault(); toggleVideoPlayPause(); return; }
             if (key === 'MediaFastForward') { event.preventDefault(); seekVideoRelative(15); return; }
             if (key === 'MediaRewind') { event.preventDefault(); seekVideoRelative(-15); return; }
@@ -879,6 +985,14 @@
             if (isVideoActive && (active === videoProgressBar || active === largeVideo || active === videoPlayPause || active === viewerHero)) {
                 event.preventDefault();
                 toggleVideoPlayPause();
+                return;
+            }
+
+            if (inViewer && !isVideoActive && photoZoom > 1.0) {
+                event.preventDefault();
+                resetPhotoZoom();
+                showHud('1.0x (Fit)');
+                updateViewerHelp();
                 return;
             }
 
@@ -963,13 +1077,20 @@
                 }
             } else {
                 // Photo is active
-                if (key === 'ArrowDown') {
-                    event.preventDefault();
-                    enterRelatedMode();
-                    return;
+                if (photoZoom > 1.0) {
+                    if (key === 'ArrowLeft') { event.preventDefault(); panPhoto(PAN_STEP, 0); return; }
+                    if (key === 'ArrowRight') { event.preventDefault(); panPhoto(-PAN_STEP, 0); return; }
+                    if (key === 'ArrowUp') { event.preventDefault(); panPhoto(0, PAN_STEP); return; }
+                    if (key === 'ArrowDown') { event.preventDefault(); panPhoto(0, -PAN_STEP); return; }
+                } else {
+                    if (key === 'ArrowDown') {
+                        event.preventDefault();
+                        enterRelatedMode();
+                        return;
+                    }
+                    if (key === 'ArrowRight') { event.preventDefault(); movePhoto(1); return; }
+                    if (key === 'ArrowLeft') { event.preventDefault(); movePhoto(-1); return; }
                 }
-                if (key === 'ArrowRight') { event.preventDefault(); movePhoto(1); return; }
-                if (key === 'ArrowLeft') { event.preventDefault(); movePhoto(-1); return; }
             }
         }
 
@@ -998,6 +1119,12 @@
             if (viewer.classList.contains('related-mode')) {
                 exitRelatedMode();
                 focusMainPhoto();
+                return;
+            }
+            if (photoZoom > 1.0) {
+                resetPhotoZoom();
+                showHud('1.0x (Fit)');
+                updateViewerHelp();
                 return;
             }
             closeViewer();
