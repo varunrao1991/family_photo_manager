@@ -19,6 +19,9 @@
     const photoCaption = document.getElementById('photoCaption');
     const photoName = document.getElementById('photoName');
     const photoDescription = document.getElementById('photoDescription');
+    const previousPhoto = document.getElementById('previousPhoto');
+    const nextPhoto = document.getElementById('nextPhoto');
+    const closeViewerBtn = document.getElementById('closeViewer');
     const scrollToTopButton = document.getElementById('scrollToTop');
     const relatedSection = document.getElementById('relatedSection');
     const relatedResults = document.getElementById('relatedResults');
@@ -555,6 +558,7 @@
         if (relatedController) relatedController.abort();
         relatedToken += 1;
         relatedLoading = false;
+        hideHud();
         resetPhotoZoom();
         viewer.classList.remove('related-mode');
         viewerHero.scrollIntoView({ behavior: 'smooth' });
@@ -625,7 +629,7 @@
             panY = Math.max(-maxPanY, Math.min(maxPanY, panY));
         }
         applyPhotoTransform();
-        showHud(photoZoom <= 1.0 ? '1.0x (Fit)' : `${photoZoom.toFixed(1)}x`);
+        showHud(photoZoom <= 1.0 ? '1.0x (Fit)' : `${photoZoom.toFixed(1)}x`, 1000);
         updateViewerHelp();
         revealViewerControls();
     }
@@ -652,6 +656,15 @@
     }
 
     // Video Player & HUD Functions
+    function hideHud() {
+        if (hudHideTimer) window.clearTimeout(hudHideTimer);
+        if (videoFeedbackHud) {
+            videoFeedbackHud.classList.remove('hud-pulse');
+            videoFeedbackHud.hidden = true;
+            videoFeedbackHud.textContent = '';
+        }
+    }
+
     function toggleVideoPlayPause() {
         if (largeVideo.hidden) return;
         if (largeVideo.paused || largeVideo.ended) {
@@ -659,16 +672,16 @@
             if (playPromise && playPromise.then) {
                 playPromise.then(() => {
                     updatePlayPauseButton(true);
-                    showHud('▶');
+                    showHud('▶', 1000);
                 }).catch(() => {});
             } else {
                 updatePlayPauseButton(true);
-                showHud('▶');
+                showHud('▶', 1000);
             }
         } else {
             largeVideo.pause();
             updatePlayPauseButton(false);
-            showHud('❚❚');
+            showHud('❚❚', 1000);
         }
         revealViewerControls();
     }
@@ -679,17 +692,19 @@
         videoPlayPause.setAttribute('aria-label', isPlaying ? 'Pause video' : 'Play video');
     }
 
-    function showHud(text) {
+    function showHud(text, duration = 1000) {
         if (!videoFeedbackHud) return;
+        if (hudHideTimer) window.clearTimeout(hudHideTimer);
         videoFeedbackHud.textContent = text;
         videoFeedbackHud.hidden = false;
         videoFeedbackHud.classList.remove('hud-pulse');
         void videoFeedbackHud.offsetWidth; // Trigger reflow for animation restart
         videoFeedbackHud.classList.add('hud-pulse');
-        if (hudHideTimer) window.clearTimeout(hudHideTimer);
         hudHideTimer = window.setTimeout(() => {
+            videoFeedbackHud.classList.remove('hud-pulse');
             videoFeedbackHud.hidden = true;
-        }, 850);
+            videoFeedbackHud.textContent = '';
+        }, duration);
     }
     const showVideoHud = showHud;
 
@@ -698,7 +713,7 @@
         const target = Math.max(0, Math.min(largeVideo.duration, (largeVideo.currentTime || 0) + seconds));
         largeVideo.currentTime = target;
         updateVideoProgressDisplay();
-        showHud(seconds > 0 ? `+${seconds}s` : `${seconds}s`);
+        showHud(seconds > 0 ? `+${seconds}s` : `${seconds}s`, 1000);
         revealViewerControls();
     }
 
@@ -738,7 +753,11 @@
             ? { type: 'image', path: photos[selectedIndex] } : photos[selectedIndex];
         const path = item.path;
         const name = item.name || path.split('/').pop();
+        hideHud();
         resetPhotoZoom();
+
+        const activeEl = document.activeElement;
+        const keepNavFocus = (activeEl === nextPhoto || activeEl === previousPhoto);
 
         if (item.type === 'video') {
             largePhoto.hidden = true;
@@ -760,7 +779,13 @@
                 playback.then(() => updatePlayPauseButton(true)).catch(() => updatePlayPauseButton(false));
             }
             photoDescription.textContent = `Video · sampled match at ${formatDuration(item.match_timestamp)}${activeQuery ? ` · Search: ${activeQuery}` : ''}`;
-            window.setTimeout(() => videoProgressBar.focus(), 120);
+            window.setTimeout(() => {
+                if (keepNavFocus && activeEl) {
+                    activeEl.focus();
+                } else {
+                    videoProgressBar.focus();
+                }
+            }, 120);
         } else {
             largeVideo.pause();
             largeVideo.removeAttribute('src');
@@ -773,7 +798,13 @@
             largePhoto.removeAttribute('src');
             largePhoto.src = imageUrl('/displayimages', path);
             photoDescription.textContent = activeQuery ? `Search: ${activeQuery}` : 'Family photo';
-            window.setTimeout(() => largePhoto.focus(), 120);
+            window.setTimeout(() => {
+                if (keepNavFocus && activeEl) {
+                    activeEl.focus();
+                } else {
+                    largePhoto.focus();
+                }
+            }, 120);
         }
 
         photoCaption.textContent = `${selectedIndex + 1} of ${photos.length} · ${item.type === 'video' ? '▶ ' : ''}${name}`;
@@ -793,8 +824,13 @@
         viewer.classList.remove('ui-hidden');
         if (viewerControlsTimer) window.clearTimeout(viewerControlsTimer);
         viewerControlsTimer = window.setTimeout(() => {
-            // Keep controls visible if user is actively focused on video controls or slider
-            if (document.activeElement && videoControls && videoControls.contains(document.activeElement)) return;
+            // Keep controls visible if user is actively focused on video controls or nav buttons
+            if (document.activeElement && (
+                (videoControls && videoControls.contains(document.activeElement)) ||
+                document.activeElement === nextPhoto ||
+                document.activeElement === previousPhoto ||
+                document.activeElement === closeViewerBtn
+            )) return;
             viewer.classList.add('ui-hidden');
         }, 4000);
     }
@@ -802,6 +838,7 @@
     function closeViewer() {
         if (viewerControlsTimer) window.clearTimeout(viewerControlsTimer);
         exitRelatedMode();
+        hideHud();
         resetPhotoZoom();
         largeVideo.pause();
         largeVideo.removeAttribute('src');
@@ -881,7 +918,7 @@
     largeVideo.addEventListener('pause', () => updatePlayPauseButton(false));
     largeVideo.addEventListener('ended', () => {
         updatePlayPauseButton(false);
-        showVideoHud('↺');
+        showHud('↺', 1500);
     });
 
     videoPlayPause.addEventListener('click', toggleVideoPlayPause);
@@ -909,9 +946,9 @@
     document.getElementById('voiceButton').addEventListener('click', startVoiceSearch);
     window.addEventListener('scroll', onResultsScroll);
     scrollToTopButton.addEventListener('click', scrollResultsToTop);
-    document.getElementById('previousPhoto').addEventListener('click', () => movePhoto(-1));
-    document.getElementById('nextPhoto').addEventListener('click', () => movePhoto(1));
-    document.getElementById('closeViewer').addEventListener('click', closeViewer);
+    previousPhoto.addEventListener('click', () => movePhoto(-1));
+    nextPhoto.addEventListener('click', () => movePhoto(1));
+    closeViewerBtn.addEventListener('click', closeViewer);
     viewerFeed.addEventListener('scroll', maybeLoadRelatedMore);
 
     similarityMix.addEventListener('input', () => {
@@ -982,6 +1019,18 @@
         if (key === 'Enter' || key === 'Select') {
             if (editingText) return; // Allow form submit
 
+            if (active === nextPhoto) {
+                event.preventDefault();
+                movePhoto(1);
+                return;
+            }
+
+            if (active === previousPhoto) {
+                event.preventDefault();
+                movePhoto(-1);
+                return;
+            }
+
             if (isVideoActive && (active === videoProgressBar || active === largeVideo || active === videoPlayPause || active === viewerHero)) {
                 event.preventDefault();
                 toggleVideoPlayPause();
@@ -991,7 +1040,7 @@
             if (inViewer && !isVideoActive && photoZoom > 1.0) {
                 event.preventDefault();
                 resetPhotoZoom();
-                showHud('1.0x (Fit)');
+                showHud('1.0x (Fit)', 1000);
                 updateViewerHelp();
                 return;
             }
@@ -1057,22 +1106,63 @@
         } else if (inViewer) {
             // In Viewer Hero (Standard View)
             if (isVideoActive) {
-                // Video is active: Left/Right seeks on progress bar, video, or hero!
-                if (key === 'ArrowLeft' || key === 'ArrowRight') {
-                    if (active === videoProgressBar || active === largeVideo || active === viewerHero) {
-                        event.preventDefault();
-                        seekVideoRelative(key === 'ArrowRight' ? 10 : -10);
-                        return;
-                    }
-                }
-                if (key === 'ArrowDown') {
+                if (key === 'ArrowRight') {
                     event.preventDefault();
-                    enterRelatedMode();
+                    if (active === nextPhoto) {
+                        return;
+                    } else if (active === videoForward) {
+                        nextPhoto.focus();
+                    } else if (active === videoProgressBar) {
+                        videoForward.focus();
+                    } else if (active === videoRewind) {
+                        videoProgressBar.focus();
+                    } else if (active === videoPlayPause) {
+                        videoRewind.focus();
+                    } else if (active === previousPhoto) {
+                        videoPlayPause.focus();
+                    } else {
+                        nextPhoto.focus();
+                    }
+                    revealViewerControls();
                     return;
                 }
-                if (key === 'ArrowUp' && (active === videoProgressBar || active === videoPlayPause || active === videoRewind || active === videoForward)) {
+
+                if (key === 'ArrowLeft') {
                     event.preventDefault();
-                    document.getElementById('closeViewer')?.focus();
+                    if (active === previousPhoto) {
+                        return;
+                    } else if (active === videoPlayPause) {
+                        previousPhoto.focus();
+                    } else if (active === videoRewind) {
+                        videoPlayPause.focus();
+                    } else if (active === videoProgressBar) {
+                        videoRewind.focus();
+                    } else if (active === videoForward) {
+                        videoProgressBar.focus();
+                    } else if (active === nextPhoto) {
+                        videoForward.focus();
+                    } else {
+                        previousPhoto.focus();
+                    }
+                    revealViewerControls();
+                    return;
+                }
+
+                if (key === 'ArrowDown') {
+                    event.preventDefault();
+                    if (active === closeViewerBtn) {
+                        nextPhoto.focus();
+                        revealViewerControls();
+                    } else {
+                        enterRelatedMode();
+                    }
+                    return;
+                }
+
+                if (key === 'ArrowUp') {
+                    event.preventDefault();
+                    closeViewerBtn.focus();
+                    revealViewerControls();
                     return;
                 }
             } else {
@@ -1083,9 +1173,33 @@
                     if (key === 'ArrowUp') { event.preventDefault(); panPhoto(0, PAN_STEP); return; }
                     if (key === 'ArrowDown') { event.preventDefault(); panPhoto(0, -PAN_STEP); return; }
                 } else {
+                    if (active === nextPhoto && key === 'ArrowLeft') {
+                        event.preventDefault();
+                        largePhoto.focus();
+                        revealViewerControls();
+                        return;
+                    }
+                    if (active === previousPhoto && key === 'ArrowRight') {
+                        event.preventDefault();
+                        largePhoto.focus();
+                        revealViewerControls();
+                        return;
+                    }
+                    if (active === closeViewerBtn && key === 'ArrowDown') {
+                        event.preventDefault();
+                        nextPhoto.focus();
+                        revealViewerControls();
+                        return;
+                    }
                     if (key === 'ArrowDown') {
                         event.preventDefault();
                         enterRelatedMode();
+                        return;
+                    }
+                    if (key === 'ArrowUp' && (active === largePhoto || active === nextPhoto || active === previousPhoto)) {
+                        event.preventDefault();
+                        closeViewerBtn.focus();
+                        revealViewerControls();
                         return;
                     }
                     if (key === 'ArrowRight') { event.preventDefault(); movePhoto(1); return; }
