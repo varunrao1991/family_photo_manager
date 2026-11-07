@@ -1,11 +1,34 @@
 param(
-    [string]$Destination = 'D:\images\PhoneImport',
-    [string]$PhoneName = "varun's A16",
+    [string]$Destination = '',
+    [string]$PhoneName = '',
     [int]$QuietSeconds = 180,
     [int]$TimeoutHours = 4
 )
 
 $ErrorActionPreference = 'Stop'
+
+function Get-EnvConfig($key, $default = '') {
+    $envFile = Join-Path $PSScriptRoot '..\.env'
+    if (Test-Path -LiteralPath $envFile) {
+        foreach ($line in Get-Content -LiteralPath $envFile) {
+            $line = $line.Trim()
+            if ($line -and -not $line.StartsWith('#') -and $line.StartsWith("$key=")) {
+                return $line.Substring($key.Length + 1).Trim("`"' ")
+            }
+        }
+    }
+    return $default
+}
+
+if (-not $Destination) {
+    $Destination = Get-EnvConfig 'PHONE_IMPORT_DESTINATION' 'D:\images\PhoneImport'
+}
+if (-not $PhoneName) {
+    $PhoneName = Get-EnvConfig 'PHONE_NAME' ''
+}
+if (-not $PhoneName) {
+    throw "Please specify -PhoneName or set PHONE_NAME in .env"
+}
 
 function Find-Folder($folder, [string]$name) {
     $folder.Items() | Where-Object { $_.IsFolder -and $_.Name -ieq $name } | Select-Object -First 1

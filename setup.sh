@@ -169,6 +169,7 @@ install_deps() {
             [ "$i" -eq 3 ] && { echo -e "${RED}Failed to upgrade pip${NC}"; exit 1; }
         }
     done
+    python -m pip install "setuptools<70" wheel
 
     PYTHON_MINOR=$(python -c 'import sys; print(sys.version_info.minor)')
     if [[ "$PYTHON_MINOR" -ge 11 ]]; then
@@ -192,9 +193,16 @@ install_deps() {
         echo -e "${YELLOW}Using existing CLIP repo in external/clip${NC}"
     fi
 
-    pip install -e external/clip
+    pip install -e external/clip --no-build-isolation
 
     echo -e "${GREEN}Dependencies installed${NC}"
+}
+
+import_phone_media() {
+    echo -e "${YELLOW}Checking for connected phone...${NC}"
+    if [ "$IS_WINDOWS" = true ]; then
+        powershell.exe -NoProfile -ExecutionPolicy Bypass -File "tools/complete_phone_media_adb.ps1" -Destination "$PHOTO_DIR/PhoneImport" || true
+    fi
 }
 
 prepare_images() {
@@ -213,6 +221,7 @@ main() {
     setup_venv
     activate_venv
     install_deps
+    import_phone_media
     prepare_images
     launch_app
 }

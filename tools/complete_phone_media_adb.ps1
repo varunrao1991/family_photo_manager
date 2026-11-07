@@ -1,18 +1,49 @@
 param(
-    [string]$Destination = 'D:\images\PhoneImport',
-    [string]$Adb = 'C:\Program Files (x86)\Android\android-sdk\platform-tools\adb.exe',
+    [string]$Destination = '',
+    [string]$Adb = '',
     [string]$Serial = ''
 )
 
 $ErrorActionPreference = 'Stop'
-$extensions = @('.jpg','.jpeg','.png','.webp','.heic','.heif','.gif','.bmp','.tif','.tiff','.dng','.avif','.mp4','.mov','.m4v','.3gp','.3g2','.mkv','.avi','.webm','.mpg','.mpeg','.wmv','.mts','.m2ts','.ts','.flv')
-if (-not (Test-Path -LiteralPath $Adb)) { throw "ADB was not found at '$Adb'." }
+
+function Get-EnvConfig($key, $default = '') {
+    $envFile = Join-Path $PSScriptRoot '..\.env'
+    if (Test-Path -LiteralPath $envFile) {
+        foreach ($line in Get-Content -LiteralPath $envFile) {
+            $line = $line.Trim()
+            if ($line -and -not $line.StartsWith('#') -and $line.StartsWith("$key=")) {
+                return $line.Substring($key.Length + 1).Trim("`"' ")
+            }
+        }
+    }
+    return $default
+}
+
+if (-not $Destination) {
+    $Destination = Get-EnvConfig 'PHONE_IMPORT_DESTINATION' 'D:\images\PhoneImport'
+}
+if (-not $Adb) {
+    $Adb = Get-EnvConfig 'ADB_PATH' 'C:\Program Files (x86)\Android\android-sdk\platform-tools\adb.exe'
+}
+
+if (-not (Test-Path -LiteralPath $Adb)) {
+    Write-Output "ADB executable not found at '$Adb'. Skipping phone import."
+    exit 0
+}
+
 $devices = @(& $Adb devices -l | Select-Object -Skip 1 | Where-Object { $_ -match '\sdevice(?:\s|$)' })
+if ($devices.Count -eq 0) {
+    Write-Output "No phone connected via ADB. Skipping phone import."
+    exit 0
+}
+
 if (-not $Serial) {
-    if ($devices.Count -ne 1) { throw "Expected one authorized ADB device; found $($devices.Count)." }
     $Serial = ($devices[0] -split '\s+')[0]
 }
 
+Write-Output "Phone detected (Device: $Serial). Checking for new photos/videos..."
+
+$extensions = @('.jpg','.jpeg','.png','.webp','.heic','.heif','.gif','.bmp','.tif','.tiff','.dng','.avif','.mp4','.mov','.m4v','.3gp','.3g2','.mkv','.avi','.webm','.mpg','.mpeg','.wmv','.mts','.m2ts','.ts','.flv')
 $skipped = [System.Collections.Generic.List[string]]::new()
 $transferErrors = [System.Collections.Generic.List[string]]::new()
 $checked = 0
@@ -70,6 +101,6 @@ foreach ($uuid in $sdCards) {
     Copy-MediaTree "$remoteRoot/Android/media/com.whatsapp.w4b" (Join-Path $sd 'Android\media\com.whatsapp.w4b')
 }
 
-Write-Output "Checked $checked image/video files; pulled $pulled missing files."
+Write-Output "Checked $checked image/video files; pulled $pulled new missing files."
 if ($skipped.Count) { Write-Output "Skipped $($skipped.Count) unreadable source file(s):"; $skipped | ForEach-Object { Write-Output "  $_" } }
 if ($transferErrors.Count) { Write-Output "Could not copy $($transferErrors.Count) other file(s):"; $transferErrors | ForEach-Object { Write-Output "  $_" } }

@@ -19,3 +19,6 @@ __pycache__/
 # Tizen build artifacts and packages
 .buildResult/
 *.wgt
+
+# Local environment variables & secrets
+.env
